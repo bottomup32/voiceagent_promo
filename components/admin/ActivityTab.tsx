@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { PhoneCall } from "lucide-react";
+import { PhoneCall, Sparkles, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { readJson } from "@/lib/http";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
@@ -12,18 +13,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Transcript } from "@/components/call/Transcript";
-import { EmptyState, StatusBadge } from "@/components/admin/shared";
-import { callerLines, formatDuration } from "@/lib/analytics";
-import type { CallLog } from "@/lib/types";
+import { EmptyState, StatusBadge, STATUS_STYLES } from "@/components/admin/shared";
+import { callerSaid, formatDuration, gapRollup } from "@/lib/analytics";
+import type { CallLog, CallSentiment } from "@/lib/types";
 
 const STATUS_KIND = {
   completed: "positive",
@@ -31,6 +24,123 @@ const STATUS_KIND = {
   abandoned: "caution",
   failed: "negative",
 } as const;
+
+const SENTIMENT: Record<
+  CallSentiment,
+  { label: string; kind: keyof typeof STATUS_STYLES }
+> = {
+  happy: { label: "Happy", kind: "positive" },
+  mixed: { label: "Mixed", kind: "caution" },
+  frustrated: { label: "Frustrated", kind: "negative" },
+};
+
+/** One labelled line of the review. Nothing renders when the model said nothing. */
+function ReviewLine({ label, text }: { label: string; text?: string }) {
+  if (!text) return null;
+  return (
+    <div className="flex gap-3">
+      <span className="ta-caption-1 text-muted-foreground w-20 shrink-0 pt-0.5">
+        {label}
+      </span>
+      <span className="ta-body-2">{text}</span>
+    </div>
+  );
+}
+
+function CallCard({
+  call,
+  busy,
+  onOpen,
+  onSetKind,
+  onAnalyze,
+}: {
+  call: CallLog;
+  busy: boolean;
+  onOpen: () => void;
+  onSetKind: (isTest: boolean) => void;
+  onAnalyze: () => void;
+}) {
+  const said = callerSaid(call);
+  const review = call.review;
+  const turns = call.turns ?? call.transcript.length;
+
+  return (
+    <li className="rounded-xl border p-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="ta-label-1">{new Date(call.startedAt).toLocaleString()}</span>
+        <span className="ta-caption-1 text-muted-foreground tabular-nums">
+          {formatDuration(call.durationSec)} · {turns} turns
+        </span>
+        <StatusBadge kind={STATUS_KIND[call.status]}>{call.status}</StatusBadge>
+        {review ? (
+          <StatusBadge kind={SENTIMENT[review.sentiment].kind}>
+            {SENTIMENT[review.sentiment].label}
+          </StatusBadge>
+        ) : null}
+        <label className="ta-caption-1 text-muted-foreground ml-auto flex items-center gap-2">
+          <Switch
+            checked={call.isTest}
+            disabled={busy}
+            onCheckedChange={(checked) => onSetKind(checked === true)}
+            aria-label={`Count this call as ${call.isTest ? "a customer call" : "your test"}`}
+          />
+          {call.isTest ? "Test" : "Customer"}
+        </label>
+      </div>
+
+      {review ? (
+        <div className="mt-3 space-y-1.5">
+          <ReviewLine label="Tested" text={review.tested} />
+          <ReviewLine label="Worked" text={review.worked} />
+          <ReviewLine label="Fell short" text={review.struggled} />
+          {review.gaps.length ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1 pl-23">
+              {review.gaps.map((gap) => (
+                <span
+                  key={gap}
+                  className="ta-caption-1 text-warning bg-warning/10 rounded-full px-2.5 py-0.5"
+                >
+                  {gap}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <p className="ta-caption-1 text-muted-foreground">
+            {call.status === "started"
+              ? "Still on the line."
+              : "Not reviewed — this call happened before reviews, or the model was unreachable."}
+          </p>
+          {call.status === "started" ? null : (
+            <Button size="sm" variant="outline" disabled={busy} onClick={onAnalyze}>
+              <Sparkles className="size-3.5" aria-hidden />
+              Analyze
+            </Button>
+          )}
+        </div>
+      )}
+
+      {said ? (
+        <details className="mt-3">
+          <summary className="ta-caption-1 text-muted-foreground hover:text-foreground cursor-pointer">
+            What the caller said
+          </summary>
+          <p className="ta-body-2-reading text-muted-foreground mt-2">{said}</p>
+        </details>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="ta-caption-1 text-primary mt-3 hover:underline"
+      >
+        Read the full transcript
+      </button>
+    </li>
+  );
+}
 
 export function ActivityTab({
   calls,
@@ -44,19 +154,16 @@ export function ActivityTab({
   const [selected, setSelected] = useState<CallLog | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  // Calls made before the test flag was explicit were tagged from the admin
-  // cookie, so trying a prospect's own link marked the call as a test and it
-  // left the numbers. This puts it back.
-  async function setKind(call: CallLog, isTest: boolean) {
+  async function patch(call: CallLog, body: Record<string, unknown>, done: string) {
     setBusyId(call.id);
     try {
       const response = await fetch(`/api/admin/customers/${customerId}/calls`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callId: call.id, isTest }),
+        body: JSON.stringify({ callId: call.id, ...body }),
       });
       await readJson<{ call: CallLog }>(response);
-      toast.success(isTest ? "Counted as your test." : "Counted as a customer call.");
+      toast.success(done);
       onChanged?.();
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "Could not change it.");
@@ -66,9 +173,9 @@ export function ActivityTab({
   }
 
   const testCount = calls.filter((call) => call.isTest).length;
-  // The most useful thing in a demo is what the caller wanted, not how long
-  // they stayed. Their own words, newest first, each opening the call it is from.
-  const asked = callerLines(calls, 30);
+  // A shortcoming that shows up in four calls is the next thing to build; the
+  // same shortcoming read four times in four transcripts is just four calls.
+  const gaps = gapRollup(calls);
 
   if (calls.length === 0) {
     return (
@@ -89,84 +196,48 @@ export function ActivityTab({
           Switch one off if a customer made it.
         </p>
       ) : null}
-      {asked.length ? (
-        <section className="mb-6 space-y-2">
-          <h3 className="ta-headline-2">What they asked</h3>
-          <p className="ta-caption-1 text-muted-foreground">
-            Every line the callers said, newest first. Click one to read the call
-            it came from.
+
+      {gaps.length ? (
+        <section className="bg-muted/40 mb-6 rounded-xl p-4">
+          <h3 className="ta-headline-2 flex items-center gap-2">
+            <Wrench className="text-muted-foreground size-4" aria-hidden />
+            What to fix
+          </h3>
+          <p className="ta-caption-1 text-muted-foreground mt-1">
+            Where the receptionist ran out of road, across every call here.
+            Commonest first.
           </p>
-          <ul className="max-h-64 space-y-1 overflow-y-auto pt-1">
-            {asked.map((line, index) => (
-              <li key={`${line.callId}-${index}`}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelected(calls.find((call) => call.id === line.callId) ?? null)
-                  }
-                  className="hover:bg-accent ta-body-2 w-full rounded-lg px-2 py-1.5 text-left"
-                >
-                  {line.text}
-                  <span className="ta-caption-2 text-muted-foreground block">
-                    {new Date(line.at).toLocaleString()}
-                  </span>
-                </button>
+          <ul className="mt-3 space-y-1.5">
+            {gaps.map((gap) => (
+              <li key={gap.text} className="flex items-baseline gap-3">
+                <span className="ta-numeric text-warning w-6 shrink-0 text-right">
+                  {gap.count}
+                </span>
+                <span className="ta-body-2">{gap.text}</span>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="ta-caption-1 text-muted-foreground">Started</TableHead>
-            <TableHead className="ta-caption-1 text-muted-foreground text-right">
-              Duration
-            </TableHead>
-            <TableHead className="ta-caption-1 text-muted-foreground text-right">
-              Turns
-            </TableHead>
-            <TableHead className="ta-caption-1 text-muted-foreground">Status</TableHead>
-            <TableHead className="ta-caption-1 text-muted-foreground">Kind</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {calls.map((call) => (
-            <TableRow
-              key={call.id}
-              className="hover:bg-accent h-11 cursor-pointer"
-              onClick={() => setSelected(call)}
-            >
-              <TableCell className="ta-label-1">
-                {new Date(call.startedAt).toLocaleString()}
-              </TableCell>
-              <TableCell className="ta-label-1 text-right tabular-nums">
-                {formatDuration(call.durationSec)}
-              </TableCell>
-              <TableCell className="ta-label-1 text-right tabular-nums">
-                {call.turns ?? call.transcript.length}
-              </TableCell>
-              <TableCell>
-                <StatusBadge kind={STATUS_KIND[call.status]}>{call.status}</StatusBadge>
-              </TableCell>
-              <TableCell onClick={(event) => event.stopPropagation()}>
-                <label className="ta-caption-1 text-muted-foreground flex items-center gap-2">
-                  <Switch
-                    checked={call.isTest}
-                    disabled={busyId === call.id}
-                    onCheckedChange={(checked) => void setKind(call, checked)}
-                    aria-label={`Count this call as ${
-                      call.isTest ? "a customer call" : "your test"
-                    }`}
-                  />
-                  {call.isTest ? "Test" : "Customer"}
-                </label>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <ul className="space-y-3">
+        {calls.map((call) => (
+          <CallCard
+            key={call.id}
+            call={call}
+            busy={busyId === call.id}
+            onOpen={() => setSelected(call)}
+            onSetKind={(isTest) =>
+              void patch(
+                call,
+                { isTest },
+                isTest ? "Counted as your test." : "Counted as a customer call.",
+              )
+            }
+            onAnalyze={() => void patch(call, { analyze: true }, "Reviewed.")}
+          />
+        ))}
+      </ul>
 
       <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
         <SheetContent side="right" className="w-96 overflow-y-auto sm:max-w-96">

@@ -187,6 +187,26 @@ only finished calls let a ten minute demo hand out an hour.
 The per-IP limiter in that route is per-instance memory and only thins bursts;
 the allowance is the real protection and it is stored.
 
+Every finished call is read back by a model once, at the moment it is reported
+(`lib/call-review.ts`), and the result is stored on the record as `review`:
+what the caller was trying to do, what worked, where it fell short, and up to
+three `gaps` short enough to group. `gapRollup()` counts those across a
+prospect's calls, which is the whole point — one call where the receptionist
+did not know the hours is an anecdote, four is the next thing to build. The
+model is given the transcript and *not* the business profile, because a model
+holding the answer forgives the gap. `reviewCall` never throws: a review is
+worth having and never worth failing a call report for, so an unreachable model
+means a call with no review, and the admin can ask again with `analyze` on
+`PATCH /api/admin/customers/[id]/calls` — never twice for the same call, since
+it costs money and the operator has already read the first wording.
+
+The Activity tab is one card per call. It used to list every caller bubble as
+its own row, which looked like five questions from one call and began each row
+mid-word: a bubble ends whenever the other speaker starts, and on a phone call
+the receptionist says "mm-hm" over the top of people. That is right on screen
+and wrong in a list, so `callerSaid()` joins the caller's fragments back into
+the sentence they said and the bubbles stay in the transcript sheet.
+
 Admin test calls are tagged `isTest` and excluded from customer-facing numbers.
 A call is a test because the admin test panel said so in the `/api/session`
 body, not because the request carried an admin cookie — the cookie is

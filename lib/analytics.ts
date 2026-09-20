@@ -335,26 +335,67 @@ export function engagement(
   return { score, level, reason: parts.join(" · ") || "No activity yet" };
 }
 
-export type CallerLine = { callId: string; at: string; text: string };
+/**
+ * One caller's side of one call, as prose.
+ *
+ * The transcript is stored as bubbles, and a bubble ends whenever the other
+ * speaker starts — which on a phone call happens every time the receptionist
+ * says "mm-hm" over the top of someone. That is right on screen and wrong in a
+ * list: it cut single sentences into five rows that each began mid-word. The
+ * caller's fragments in order, joined, are the sentence they actually said.
+ */
+export function callerSaid(call: CallLog): string {
+  return call.transcript
+    .filter((entry) => entry.speaker === "caller")
+    .map((entry) => entry.text.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .trim();
+}
+
+export type GapCount = { text: string; count: number; callIds: string[] };
 
 /**
- * What the callers actually said, newest first. This is the part of a demo that
- * tells you what the business wants to know — whether they asked about price,
- * or tried to book something, or were testing whether it would break.
+ * The same shortcoming across several calls, commonest first. One call where
+ * the receptionist did not know the hours is an anecdote; four calls is the
+ * next thing to build.
+ *
+ * Grouping is on the exact wording, normalised for case and trailing
+ * punctuation. Anything cleverer would be guessing at which two sentences mean
+ * the same thing, and a wrong merge here quietly hides a real problem.
  */
-export function callerLines(calls: CallLog[], limit = 50): CallerLine[] {
-  const lines: CallerLine[] = [];
+export function gapRollup(calls: CallLog[]): GapCount[] {
+  const groups = new Map<string, GapCount>();
   for (const call of calls) {
-    for (const entry of call.transcript) {
-      if (entry.speaker !== "caller") continue;
-      const text = entry.text.trim();
+    for (const gap of call.review?.gaps ?? []) {
+      const text = gap.trim();
       if (!text) continue;
-      lines.push({ callId: call.id, at: call.startedAt, text });
+      const key = text.toLowerCase().replace(/[.!?,;:\s]+$/, "");
+      const group = groups.get(key);
+      if (group) {
+        group.count += 1;
+        if (!group.callIds.includes(call.id)) group.callIds.push(call.id);
+      } else {
+        groups.set(key, { text, count: 1, callIds: [call.id] });
+      }
     }
   }
-  return lines
-    .sort((a, b) => b.at.localeCompare(a.at))
-    .slice(0, limit);
+  return [...groups.values()].sort(
+    (a, b) => b.count - a.count || a.text.localeCompare(b.text),
+  );
+}
+
+/** Calls whose transcript is long enough to review but has not been. */
+export function unreviewedCalls(calls: CallLog[]): CallLog[] {
+  return calls.filter(
+    (call) =>
+      !call.review &&
+      call.status !== "started" &&
+      call.transcript.filter((entry) => entry.speaker === "caller" && entry.text.trim())
+        .length >= 2,
+  );
 }
 
 export type TimelineEntry = {

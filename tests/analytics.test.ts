@@ -4,7 +4,9 @@ import {
   computeKpis,
   computeStats,
   countableCalls,
-  callerLines,
+  callerSaid,
+  gapRollup,
+  unreviewedCalls,
   demoAllowance,
   distinctVisitors,
   engagement,
@@ -379,12 +381,12 @@ describe("engagement", () => {
   });
 });
 
-describe("callerLines", () => {
-  const call = (id: string, at: string, texts: string[]): CallLog => ({
+describe("callerSaid", () => {
+  const call = (id: string, texts: string[]): CallLog => ({
     id,
     customerId: "abc",
     liveSessionId: "s",
-    startedAt: at,
+    startedAt: "2026-09-20T10:00:00.000Z",
     status: "completed",
     isTest: false,
     transcript: texts.map((text, index) => ({
@@ -397,30 +399,101 @@ describe("callerLines", () => {
   });
 
   it("keeps what the caller said and drops what the receptionist said", () => {
-    const lines = callerLines([call("c1", "2026-09-20T10:00:00.000Z", [
-      "Do you deliver?",
-      "We do, within two miles.",
-      "How much is it?",
-    ])]);
-    expect(lines.map((line) => line.text)).toEqual(["Do you deliver?", "How much is it?"]);
+    expect(
+      callerSaid(call("c1", ["Do you deliver?", "We do, within two miles.", "How much?"])),
+    ).toBe("Do you deliver? How much?");
   });
 
-  it("puts the most recent call first", () => {
-    const lines = callerLines([
-      call("old", "2026-09-01T10:00:00.000Z", ["older question"]),
-      call("new", "2026-09-20T10:00:00.000Z", ["newer question"]),
-    ]);
-    expect(lines[0].text).toBe("newer question");
-  });
-
-  it("keeps the call each line came from, so it can be opened", () => {
-    const lines = callerLines([call("c1", "2026-09-20T10:00:00.000Z", ["Hello"])]);
-    expect(lines[0].callId).toBe("c1");
+  it("puts a sentence back together that a backchannel cut in half", () => {
+    // This is the bug the list had: "mm-hm" over the top of someone ends their
+    // bubble, so one sentence arrived as several rows starting mid-word.
+    expect(
+      callerSaid(
+        call("c1", [
+          "I'd like it sometime next",
+          "Mm-hm.",
+          "week, I'm pretty flexible",
+        ]),
+      ),
+    ).toBe("I'd like it sometime next week, I'm pretty flexible");
   });
 
   it("ignores blank fragments the transcript picked up", () => {
-    const lines = callerLines([call("c1", "2026-09-20T10:00:00.000Z", ["  ", "x", "Real question"])]);
-    expect(lines.map((line) => line.text)).toEqual(["Real question"]);
+    expect(callerSaid(call("c1", ["  ", "x", "Real question"]))).toBe("Real question");
+  });
+
+  it("does not leave a space in front of punctuation when joining", () => {
+    expect(callerSaid(call("c1", ["Is it open", "Mm.", ", today?"]))).toBe(
+      "Is it open, today?",
+    );
+  });
+});
+
+describe("gapRollup", () => {
+  const reviewed = (id: string, gaps: string[]): CallLog =>
+    call({
+      id,
+      review: {
+        at: "2026-09-20T10:00:00.000Z",
+        model: "test",
+        tested: "asked about something",
+        worked: "",
+        struggled: "",
+        gaps,
+        sentiment: "mixed",
+      },
+    });
+
+  it("counts the same shortcoming across calls, commonest first", () => {
+    const rolled = gapRollup([
+      reviewed("a", ["did not know opening hours", "no live calendar"]),
+      reviewed("b", ["did not know opening hours"]),
+      reviewed("c", ["did not know opening hours"]),
+    ]);
+    expect(rolled[0]).toMatchObject({ text: "did not know opening hours", count: 3 });
+    expect(rolled[0].callIds).toEqual(["a", "b", "c"]);
+    expect(rolled[1].count).toBe(1);
+  });
+
+  it("groups past case and a trailing full stop", () => {
+    const rolled = gapRollup([
+      reviewed("a", ["No live calendar."]),
+      reviewed("b", ["no live calendar"]),
+    ]);
+    expect(rolled).toHaveLength(1);
+    expect(rolled[0].count).toBe(2);
+  });
+
+  it("says nothing about calls nobody reviewed", () => {
+    expect(gapRollup([call({ id: "a" }), reviewed("b", [])])).toEqual([]);
+  });
+});
+
+describe("unreviewedCalls", () => {
+  const withCaller = (id: string, lines: number, over: Partial<CallLog> = {}): CallLog =>
+    call({
+      id,
+      transcript: Array.from({ length: lines }, (_, index) => ({
+        id: `${id}-${index}`,
+        speaker: "caller" as const,
+        text: "something",
+        startMs: index * 1000,
+        endMs: index * 1000 + 500,
+      })),
+      ...over,
+    });
+
+  it("finds a finished call with enough said and no review", () => {
+    expect(unreviewedCalls([withCaller("a", 3)]).map((entry) => entry.id)).toEqual(["a"]);
+  });
+
+  it("leaves out a call still on the line, and one too short to judge", () => {
+    const found = unreviewedCalls([
+      withCaller("live", 3, { status: "started" }),
+      withCaller("brief", 1),
+      withCaller("ok", 2),
+    ]);
+    expect(found.map((entry) => entry.id)).toEqual(["ok"]);
   });
 });
 

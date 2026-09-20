@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { assertWritableStore } from "@/lib/kv";
 import { clearLive, findCall, saveCall } from "@/lib/calls";
+import { reviewCall } from "@/lib/call-review";
 import type { CallStatus, TranscriptEntry } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -46,17 +47,19 @@ export async function POST(request: Request, { params }: Params) {
       ? Math.round(body.durationSec)
       : undefined;
 
+  const ended = {
+    ...call,
+    status,
+    endedAt: new Date().toISOString(),
+    durationSec,
+    endReason: body.endReason?.slice(0, 120),
+    turns: transcript.length,
+    transcript,
+  };
+
   try {
     assertWritableStore();
-    await saveCall({
-      ...call,
-      status,
-      endedAt: new Date().toISOString(),
-      durationSec,
-      endReason: body.endReason?.slice(0, 120),
-      turns: transcript.length,
-      transcript,
-    });
+    await saveCall(ended);
     // The line is free again. Hand the seat back before someone waits for the
     // stale window to expire.
     await clearLive(call);
@@ -64,5 +67,19 @@ export async function POST(request: Request, { params }: Params) {
     return jsonError(error);
   }
 
-  return NextResponse.json({ ok: true });
+  // Read what the call says about the product while the transcript is in hand.
+  // Nobody is waiting on this response — the client reports and moves on — but
+  // a serverless function stops the moment it returns, so it has to be awaited
+  // here rather than left running. A failed review is saved as no review.
+  const review = await reviewCall(ended);
+  if (review) {
+    try {
+      await saveCall({ ...ended, review });
+    } catch {
+      // The call itself is already safely recorded; the review can be asked
+      // for again from the admin.
+    }
+  }
+
+  return NextResponse.json({ ok: true, reviewed: Boolean(review) });
 }

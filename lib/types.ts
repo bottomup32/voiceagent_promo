@@ -130,6 +130,32 @@ export type TranscriptEntry = {
 
 export type CallStatus = "started" | "completed" | "failed" | "abandoned";
 
+export type CallSentiment = "happy" | "mixed" | "frustrated";
+
+/**
+ * What one demo call told us about the product. The transcript says what
+ * happened; this says what to do about it, which is the thing an operator
+ * cannot get by reading thirty calls in a row.
+ *
+ * It is written once when the call is reported and never recomputed, so the
+ * wording an operator read yesterday is the wording they read today. A call
+ * with no review is a call the model was not asked about or could not answer
+ * on — never a call that went perfectly.
+ */
+export type CallReview = {
+  at: string;
+  model: string;
+  /** What the caller was trying to get done. */
+  tested: string;
+  /** What the receptionist handled well. */
+  worked: string;
+  /** Where it fell short. Empty when nothing did. */
+  struggled: string;
+  /** Fixable things, short enough to group across calls. */
+  gaps: string[];
+  sentiment: CallSentiment;
+};
+
 export type CallLog = {
   id: string;
   customerId: string;
@@ -146,6 +172,7 @@ export type CallLog = {
   ipHash?: string;
   visitorId?: string;
   isTest: boolean;
+  review?: CallReview;
 };
 
 export type CallState =
