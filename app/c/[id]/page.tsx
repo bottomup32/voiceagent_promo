@@ -32,7 +32,9 @@ export async function generateMetadata({ params }: Props) {
     title: customer?.profile.name
       ? `Call ${customer.profile.name}`
       : "TecAce voice agent",
-    description: "Talk to an AI receptionist built for this business.",
+    description:
+      "Talk to an AI receptionist built for this business, and see what else " +
+      "it can answer, book, and take down.",
   };
 }
 
