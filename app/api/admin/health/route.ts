@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { existsSync } from "node:fs";
-import { storeKind } from "@/lib/kv";
+import { pingStore, storeKind } from "@/lib/kv";
 import { resolveClaudeCli } from "@/lib/claude-cli";
 import { resolveProvider } from "@/lib/research-runner";
 
@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 export async function GET() {
   const provider = resolveProvider();
   const store = storeKind();
+  const reachable = await pingStore();
   const onVercel = Boolean(process.env.VERCEL);
   const cliPath = resolveClaudeCli();
   const cliPresent = cliPath.includes("/") || cliPath.includes("\\")
@@ -21,10 +22,11 @@ export async function GET() {
   const checks = {
     storage: {
       kind: store,
-      ok: !onVercel || store === "redis",
-      note:
-        store === "redis"
-          ? "Shared Redis store."
+      ok: (!onVercel || store === "redis") && reachable.ok,
+      note: !reachable.ok
+        ? reachable.error
+        : store === "redis"
+          ? "Shared Redis store, and it answers."
           : onVercel
             ? "Writing to the filesystem on a serverless host. Data will not persist. Set KV_REST_API_URL and KV_REST_API_TOKEN."
             : "JSON files under data/.",
@@ -55,7 +57,7 @@ export async function GET() {
       ok: Boolean(process.env.NEXT_PUBLIC_BASE_URL),
       baseUrl: process.env.NEXT_PUBLIC_BASE_URL ?? null,
       note: process.env.NEXT_PUBLIC_BASE_URL
-        ? "Customer links use this origin."
+        ? "Customer links use this origin. It is baked in at build time, so changing it needs a redeploy."
         : "NEXT_PUBLIC_BASE_URL is not set, so copied links fall back to the current origin.",
     },
   };

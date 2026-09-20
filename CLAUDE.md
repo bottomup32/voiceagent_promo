@@ -43,10 +43,12 @@ Do not mix these up. They are separate systems with separate credentials.
 - **Voice** is OpenAI **GPT-Live-1** (`gpt-live-1`), a different API from the
   Realtime API: sessions are created at `POST /v1/live/sessions` with the SDP
   offer in the body, not with an ephemeral client secret. Needs `OPENAI_API_KEY`.
-- **Research** shells out to the locally installed **Claude Code CLI** in headless
-  mode (`lib/claude-cli.ts`), which authenticates with the user's Claude
-  subscription. No API key, no `@anthropic-ai/sdk`. The app must run where that
-  CLI is installed and signed in.
+- **Research** has two providers behind `lib/research-runner.ts`. Locally it
+  shells out to the **Claude Code CLI** in headless mode (`lib/claude-cli.ts`),
+  which runs on the operator's Claude subscription and costs nothing per run.
+  On a host with no CLI to spawn it calls the **Anthropic API** and needs
+  `ANTHROPIC_API_KEY`. `resolveProvider()` picks the API when `VERCEL` is set;
+  `RESEARCH_PROVIDER` overrides either way.
 
 ## The call
 
@@ -95,18 +97,34 @@ three minutes, so `POST /api/admin/customers` returns immediately with status
 `maxDuration = 600`.
 
 `lib/prompt.ts` turns a profile into the three prompts the call runs on (voice,
-backend, greeting). Prompts edited by hand set `prompts.edited`, which survives a
-re-research until someone asks to rebuild.
+backend, greeting). `resolvePrompts()` decides what a save keeps: the editor
+posts the whole record every time, so prompts coming back byte-identical are not
+a hand edit. Only different text sets `prompts.edited`, which then survives a
+re-research until someone asks to rebuild. Prompts nobody has touched are
+rebuilt from the data on every save, so a new receptionist name or a corrected
+address reaches the call.
 
 ## Storage
 
-JSON files under `data/`, gitignored: customers, call logs per customer, and an
-events log for page views. There is no database and no ORM. `lib/store.ts`
-normalizes records on read, which is where migrations for old records live (a
-missing business name, the retired `quartz` default voice). Analytics is pure
-functions over those files in `lib/analytics.ts` — keep it free of `node:fs`
-imports, since client components import `formatDuration` from it and pulling
+Everything goes through the small `Store` interface in `lib/kv.ts`, which has
+two drivers: JSON files under `data/` (gitignored, what you want locally) and a
+Redis-compatible store over HTTP, for a host with a read-only filesystem. The
+choice is `KV_REST_API_URL` + `KV_REST_API_TOKEN`, not a rewrite. On a
+serverless host with neither set, `assertWritableStore()` fails the write up
+front with a message naming both variables, because falling back to files there
+looks like a crash at the first save.
+
+Stored are customers, call logs per customer, and an events log for page views.
+There is no ORM. `lib/store.ts` normalizes records on read, which is where
+migrations for old records live (a missing business name, the retired `quartz`
+default voice). Analytics is pure functions over those records in
+`lib/analytics.ts` — keep it free of `node:fs` imports, since client components
+import `formatDuration` and `isResearchStalled` from it and pulling
 `lib/calls.ts` in would break the browser bundle.
+
+`/api/admin/health` reports what the deployment can actually do — it pings the
+store rather than trusting that the variables look right — and is the first
+thing to read when a deploy misbehaves.
 
 Admin test calls are tagged `isTest` and excluded from customer-facing numbers.
 

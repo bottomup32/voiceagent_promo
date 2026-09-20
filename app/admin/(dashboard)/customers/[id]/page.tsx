@@ -18,7 +18,8 @@ import { PageHeader, StatCard, StatusBadge, statusKind } from "@/components/admi
 import { CallPanel } from "@/components/call/CallPanel";
 import { Transcript } from "@/components/call/Transcript";
 import { useLiveCall } from "@/hooks/useLiveCall";
-import { formatDuration } from "@/lib/analytics";
+import { formatDuration, isResearchStalled } from "@/lib/analytics";
+import { readJson } from "@/lib/http";
 import type { CallLog, Customer, CustomerStats } from "@/lib/types";
 
 type Payload = { customer: Customer; stats: CustomerStats; calls: CallLog[] };
@@ -32,15 +33,21 @@ export default function CustomerDetailPage({
   const [data, setData] = useState<Payload | null>(null);
   const [draft, setDraft] = useState<Customer | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [researching, setResearching] = useState(false);
   const call = useLiveCall(id, draft?.callSound);
 
   const load = useCallback(async () => {
-    const response = await fetch(`/api/admin/customers/${id}`, { cache: "no-store" });
-    if (!response.ok) return;
-    const payload = (await response.json()) as Payload;
-    setData(payload);
-    setDraft(payload.customer);
+    try {
+      const response = await fetch(`/api/admin/customers/${id}`, { cache: "no-store" });
+      const payload = await readJson<Payload>(response);
+      setData(payload);
+      setDraft(payload.customer);
+      setLoadError(null);
+    } catch (caught) {
+      // Without this the page sits on its skeleton forever and says nothing.
+      setLoadError(caught instanceof Error ? caught.message : "Could not load this customer.");
+    }
   }, [id]);
 
   useEffect(() => {
@@ -83,10 +90,7 @@ export default function CustomerDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const payload = (await response.json()) as { customer?: Customer; error?: string };
-      if (!response.ok || !payload.customer) {
-        throw new Error(payload.error || "Could not save.");
-      }
+      const payload = await readJson<{ customer: Customer }>(response);
       setDraft(payload.customer);
       setData((current) => (current ? { ...current, customer: payload.customer! } : current));
       toast.success("Saved.");
@@ -111,10 +115,7 @@ export default function CustomerDetailPage({
           researchNotes: draft?.researchNotes ?? "",
         }),
       });
-      const payload = (await response.json()) as { customer?: Customer; error?: string };
-      if (!response.ok || !payload.customer) {
-        throw new Error(payload.error || "Research failed.");
-      }
+      const payload = await readJson<{ customer: Customer }>(response);
       setDraft(payload.customer);
       setData((current) => (current ? { ...current, customer: payload.customer! } : current));
       toast.success("Research finished.");
@@ -126,9 +127,16 @@ export default function CustomerDetailPage({
     }
   }
 
+  const stalled = draft ? isResearchStalled(draft) : false;
+
   if (!data || !draft) {
     return (
       <div className="space-y-4">
+        {loadError ? (
+          <div className="bg-destructive/10 ta-label-1 text-destructive rounded-lg p-3">
+            {loadError}
+          </div>
+        ) : null}
         <Skeleton className="h-10 w-72" />
         <Skeleton className="h-28 w-full rounded-xl" />
         <Skeleton className="h-96 w-full rounded-xl" />
@@ -145,12 +153,16 @@ export default function CustomerDetailPage({
         subtitle={draft.profile.address}
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge kind={statusKind(draft.status)}>
+            <StatusBadge
+              kind={stalled ? "negative" : statusKind(draft.status)}
+            >
               {draft.status === "ready"
                 ? "Ready"
                 : draft.status === "error"
                   ? "Error"
-                  : "Researching"}
+                  : stalled
+                    ? "Stalled"
+                    : "Researching"}
             </StatusBadge>
             <label className="ta-label-1 flex items-center gap-2">
               <Switch
@@ -177,6 +189,13 @@ export default function CustomerDetailPage({
       {draft.status === "error" && draft.error ? (
         <div className="bg-destructive/10 ta-label-1 text-destructive rounded-lg p-3">
           {draft.error}
+        </div>
+      ) : null}
+
+      {stalled ? (
+        <div className="bg-destructive/10 ta-label-1 text-destructive rounded-lg p-3">
+          Research has been running since {new Date(draft.updatedAt).toLocaleString()},
+          which is longer than it takes. The run behind it is gone. Press Re-research.
         </div>
       ) : null}
 
@@ -245,11 +264,13 @@ export default function CustomerDetailPage({
                           regeneratePrompts: true,
                         }),
                       });
-                      const payload = (await response.json()) as { customer?: Customer };
-                      if (payload.customer) {
-                        setDraft(payload.customer);
-                        toast.success("Prompts rebuilt from the data.");
-                      }
+                      const payload = await readJson<{ customer: Customer }>(response);
+                      setDraft(payload.customer);
+                      toast.success("Prompts rebuilt from the data.");
+                    } catch (caught) {
+                      toast.error(
+                        caught instanceof Error ? caught.message : "Could not rebuild.",
+                      );
                     } finally {
                       setSaving(false);
                     }

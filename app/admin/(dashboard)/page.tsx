@@ -24,6 +24,7 @@ import { CallsPerDayChart } from "@/components/charts/CallsPerDayChart";
 import { TopCustomersChart } from "@/components/charts/TopCustomersChart";
 import { ChartCard, EmptyState, StatCard, StatusBadge, PageHeader } from "@/components/admin/shared";
 import { formatDuration, type DayBucket, type Kpis } from "@/lib/analytics";
+import { readJson } from "@/lib/http";
 
 type RecentCall = {
   id: string;
@@ -61,13 +62,19 @@ const STATUS_KIND = {
 export default function OverviewPage() {
   const [days, setDays] = useState("30");
   const [data, setData] = useState<Analytics | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const response = await fetch(`/api/admin/analytics?days=${days}`, {
-      cache: "no-store",
-    });
-    if (!response.ok) return;
-    setData((await response.json()) as Analytics);
+    try {
+      const response = await fetch(`/api/admin/analytics?days=${days}`, {
+        cache: "no-store",
+      });
+      setData(await readJson<Analytics>(response));
+      setError(null);
+    } catch (caught) {
+      // Without this the page sits on its skeleton forever and says nothing.
+      setError(caught instanceof Error ? caught.message : "Could not load analytics.");
+    }
   }, [days]);
 
   useEffect(() => {
@@ -97,6 +104,12 @@ export default function OverviewPage() {
           </Select>
         }
       />
+
+      {error ? (
+        <div className="bg-destructive/10 ta-label-1 text-destructive rounded-lg p-3">
+          {error}
+        </div>
+      ) : null}
 
       {data === null ? (
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">

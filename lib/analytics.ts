@@ -3,6 +3,23 @@ import type { CallLog, CustomerStats, TrackEvent } from "./types";
 /** A call left in "started" for longer than this is treated as abandoned. */
 export const STALE_CALL_MS = 10 * 60 * 1000;
 
+/**
+ * Research runs in the background, so nothing tells the page when the function
+ * behind it was killed mid-run (a host's execution limit, a redeploy). A record
+ * still marked "researching" long after its last write is not running any more.
+ */
+export const RESEARCH_STALL_MS = 15 * 60 * 1000;
+
+export function isResearchStalled(
+  customer: { status: string; updatedAt: string },
+  now = Date.now(),
+): boolean {
+  return (
+    customer.status === "researching" &&
+    now - new Date(customer.updatedAt).getTime() > RESEARCH_STALL_MS
+  );
+}
+
 /** A call that never reported an end and is older than the stale window. */
 export function isAbandoned(call: CallLog, now = Date.now()): boolean {
   return (

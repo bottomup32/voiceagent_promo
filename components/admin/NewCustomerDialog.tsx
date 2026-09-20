@@ -96,7 +96,9 @@ export function NewCustomerDialog({ onCreated }: { onCreated: () => void }) {
               placeholder="Joe's Pizza, Carmine St"
               value={form.businessName}
               onChange={(event) => update("businessName", event.target.value)}
-              aria-invalid={Boolean(error)}
+              // Only the name's own complaint marks the name. A storage or
+              // network failure has nothing to do with what was typed here.
+              aria-invalid={error ? /business name/i.test(error) : undefined}
               required
               autoFocus
             />

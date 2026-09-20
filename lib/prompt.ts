@@ -98,3 +98,43 @@ export function buildPrompts(
     edited: false,
   };
 }
+
+/**
+ * Which prompts a save should keep.
+ *
+ * The editor posts the whole record every time, prompts included, so prompts
+ * arriving unchanged means nothing was typed into them. Only text that differs
+ * counts as a hand edit; otherwise saving the address or the Active switch
+ * would mark the prompts hand-written and freeze them for good.
+ *
+ * Prompts nobody has touched follow the data they were written from, so a new
+ * receptionist name or a corrected address reaches the call.
+ */
+export function resolvePrompts(input: {
+  current: CustomerPrompts;
+  submitted?: Partial<CustomerPrompts> | null;
+  profile: BusinessProfile;
+  agentName: string;
+  regenerate?: boolean;
+}): CustomerPrompts {
+  const { current, submitted, profile, agentName, regenerate } = input;
+
+  if (regenerate) return buildPrompts(profile, agentName);
+
+  if (submitted) {
+    const typed = {
+      live: submitted.live ?? current.live,
+      backend: submitted.backend ?? current.backend,
+      greeting: submitted.greeting ?? current.greeting,
+    };
+    if (
+      typed.live !== current.live ||
+      typed.backend !== current.backend ||
+      typed.greeting !== current.greeting
+    ) {
+      return { ...typed, edited: true };
+    }
+  }
+
+  return current.edited ? current : buildPrompts(profile, agentName);
+}

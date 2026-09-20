@@ -145,8 +145,18 @@ behavesLikeAStore("redisStore", async () =>
 );
 
 describe("redisStore errors", () => {
-  it("reports a rejected request rather than returning empty data", async () => {
+  it("names the token when the store rejects the credentials", async () => {
     const store = redisStore({ url: fake.url, token: "wrong" });
-    await expect(store.getJson("customers:abc")).rejects.toThrow(/401/);
+    await expect(store.getJson("customers:abc")).rejects.toThrow(
+      /KV_REST_API_TOKEN/,
+    );
+  });
+
+  it("names the url when the store cannot be reached at all", async () => {
+    // Port 1 is reserved and nothing listens there.
+    const store = redisStore({ url: "http://127.0.0.1:1", token: "t" });
+    await expect(store.getJson("customers:abc")).rejects.toThrow(
+      /did not answer/,
+    );
   });
 });

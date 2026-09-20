@@ -4,7 +4,7 @@ import { assertWritableStore } from "@/lib/kv";
 import { deleteCustomer, getCustomer, saveCustomer } from "@/lib/store";
 import { listCalls, readEvents } from "@/lib/calls";
 import { computeStats } from "@/lib/analytics";
-import { buildPrompts } from "@/lib/prompt";
+import { resolvePrompts } from "@/lib/prompt";
 import type { BusinessProfile, CallSound, Customer, CustomerPrompts } from "@/lib/types";
 import { LIVE_VOICES } from "@/lib/types";
 
@@ -14,12 +14,12 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
-  const customer = await getCustomer(id);
-  if (!customer) {
-    return NextResponse.json({ error: "Customer not found." }, { status: 404 });
-  }
-  let calls, events;
+  let customer, calls, events;
   try {
+    customer = await getCustomer(id);
+    if (!customer) {
+      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+    }
     [calls, events] = await Promise.all([listCalls(id), readEvents()]);
   } catch (error) {
     return jsonError(error);
@@ -33,7 +33,12 @@ export async function GET(_request: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   const { id } = await params;
-  const customer = await getCustomer(id);
+  let customer;
+  try {
+    customer = await getCustomer(id);
+  } catch (error) {
+    return jsonError(error);
+  }
   if (!customer) {
     return NextResponse.json({ error: "Customer not found." }, { status: 404 });
   }
@@ -96,16 +101,13 @@ export async function PATCH(request: Request, { params }: Params) {
     updatedAt: new Date().toISOString(),
   };
 
-  if (body.regeneratePrompts) {
-    next.prompts = buildPrompts(next.profile, next.agentName);
-  } else if (body.prompts) {
-    next.prompts = {
-      live: body.prompts.live ?? customer.prompts.live,
-      backend: body.prompts.backend ?? customer.prompts.backend,
-      greeting: body.prompts.greeting ?? customer.prompts.greeting,
-      edited: true,
-    };
-  }
+  next.prompts = resolvePrompts({
+    current: customer.prompts,
+    submitted: body.prompts,
+    profile: next.profile,
+    agentName: next.agentName,
+    regenerate: body.regeneratePrompts,
+  });
 
   try {
     assertWritableStore();

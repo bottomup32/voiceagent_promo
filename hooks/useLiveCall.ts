@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CallAudio, resolveCallSound } from "@/lib/call-audio";
+import { readJson } from "@/lib/http";
 import { Ringtone } from "@/lib/ringtone";
 import { appendFragment } from "@/lib/transcript";
 import type { CallSound, CallState, TranscriptEntry } from "@/lib/types";
@@ -263,15 +264,17 @@ export function useLiveCall(
         body: JSON.stringify({ customerId, sdp: pc.localDescription?.sdp }),
       });
 
-      const data = (await response.json()) as {
+      // readJson because a crashed route answers with an empty body, and
+      // response.json() would then report its own parse error instead of the
+      // server's.
+      const data = await readJson<{
         callId?: string;
         sdp?: string;
         greeting?: string;
-        error?: string;
-      };
+      }>(response);
 
-      if (!response.ok || !data.sdp) {
-        throw new Error(data.error || "Could not start the call.");
+      if (!data.sdp) {
+        throw new Error("Could not start the call.");
       }
 
       callIdRef.current = data.callId ?? null;

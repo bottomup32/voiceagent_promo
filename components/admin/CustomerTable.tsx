@@ -38,6 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState, StatusBadge, statusKind } from "@/components/admin/shared";
+import { isResearchStalled } from "@/lib/analytics";
 import { customerLink, emailBody, emailSubject } from "@/lib/share";
 import type { CustomerWithStats } from "@/lib/types";
 
@@ -214,12 +215,20 @@ export function CustomerTable({ customers, onChanged }: Props) {
                   ) : null}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge kind={statusKind(customer.status)}>
+                  <StatusBadge
+                    kind={
+                      isResearchStalled(customer)
+                        ? "negative"
+                        : statusKind(customer.status)
+                    }
+                  >
                     {customer.status === "ready"
                       ? "Ready"
                       : customer.status === "error"
                         ? "Error"
-                        : "Researching"}
+                        : isResearchStalled(customer)
+                          ? "Stalled"
+                          : "Researching"}
                   </StatusBadge>
                 </TableCell>
                 <TableCell>

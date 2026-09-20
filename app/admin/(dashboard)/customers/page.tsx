@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readJson } from "@/lib/http";
+import { isResearchStalled } from "@/lib/analytics";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CustomerTable } from "@/components/admin/CustomerTable";
@@ -35,7 +36,10 @@ export default function CustomersPage() {
 
   // Poll only while research is still running somewhere.
   useEffect(() => {
-    const researching = customers?.some((customer) => customer.status === "researching");
+    // A stalled record never changes, so polling for it would never stop.
+    const researching = customers?.some(
+      (customer) => customer.status === "researching" && !isResearchStalled(customer),
+    );
     if (researching && !pollRef.current) {
       pollRef.current = setInterval(() => void load(), 5000);
     }

@@ -4,6 +4,7 @@ import {
   computeKpis,
   computeStats,
   countableCalls,
+  isResearchStalled,
   formatDuration,
   statsByCustomer,
 } from "../lib/analytics";
@@ -123,5 +124,33 @@ describe("formatDuration", () => {
     expect(formatDuration(undefined)).toBe("0:00");
     expect(formatDuration(95)).toBe("1:35");
     expect(formatDuration(600)).toBe("10:00");
+  });
+});
+
+describe("isResearchStalled", () => {
+  const now = Date.parse("2026-01-01T12:00:00.000Z");
+
+  it("leaves a run that only just started alone", () => {
+    expect(
+      isResearchStalled(
+        { status: "researching", updatedAt: "2026-01-01T11:58:00.000Z" },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("calls a run stalled once nothing has written for the whole window", () => {
+    expect(
+      isResearchStalled(
+        { status: "researching", updatedAt: "2026-01-01T11:40:00.000Z" },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it("says nothing about a record that finished", () => {
+    expect(
+      isResearchStalled({ status: "ready", updatedAt: "2025-01-01T00:00:00.000Z" }, now),
+    ).toBe(false);
   });
 });

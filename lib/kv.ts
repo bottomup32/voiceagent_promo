@@ -107,6 +107,13 @@ export function fsStore(root: string = DATA_DIR): Store {
   };
 }
 
+export class StoreConfigError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "StoreConfigError";
+  }
+}
+
 type RedisConfig = { url: string; token: string };
 
 function redisConfig(): RedisConfig | null {
@@ -119,15 +126,29 @@ function redisConfig(): RedisConfig | null {
 
 /** Upstash's REST protocol: POST a command as a JSON array, get {result}. */
 async function command<T>(config: RedisConfig, args: (string | number)[]): Promise<T> {
-  const response = await fetch(config.url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(args),
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(config.url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(args),
+      cache: "no-store",
+    });
+  } catch (cause) {
+    // `fetch` says only "fetch failed" here, which tells nobody where to look.
+    throw new StoreConfigError(
+      `The store at ${config.url} did not answer. Check KV_REST_API_URL and that the store is running.`,
+      { cause },
+    );
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new StoreConfigError(
+      "The store rejected the credentials. Check KV_REST_API_TOKEN.",
+    );
+  }
   if (!response.ok) {
     throw new Error(
       `Redis ${args[0]} failed with ${response.status}: ${await response.text()}`,
@@ -186,12 +207,7 @@ export function redisStore(config: RedisConfig): Store {
   };
 }
 
-export class StoreConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "StoreConfigError";
-  }
-}
+
 
 /**
  * A serverless host has no writable disk, so falling back to files there looks
@@ -217,6 +233,22 @@ export function getStore(): Store {
 /** Which backend is in play, for the admin health check. */
 export function storeKind(): "fs" | "redis" {
   return redisConfig() ? "redis" : "fs";
+}
+
+/**
+ * A round trip to the store. Configuration that looks right and a store that
+ * answers are different things, and the health check should not confuse them.
+ */
+export async function pingStore(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await getStore().getJson("health:ping");
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export { DATA_DIR };

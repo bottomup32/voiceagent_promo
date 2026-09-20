@@ -8,9 +8,23 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }> };
 
+/**
+ * This link goes out to a prospect by email. If the store is unreachable they
+ * should meet the quiet "not available" page, not a server error; the operator
+ * finds the real reason in the logs and in /api/admin/health.
+ */
+async function loadCustomer(id: string) {
+  try {
+    return await getCustomer(id);
+  } catch (error) {
+    console.error(`Could not load the demo for ${id}:`, error);
+    return null;
+  }
+}
+
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  const customer = await getCustomer(id);
+  const customer = await loadCustomer(id);
   return {
     title: customer?.profile.name
       ? `Call ${customer.profile.name}`
@@ -21,7 +35,7 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function CustomerDemoPage({ params }: Props) {
   const { id } = await params;
-  const customer = await getCustomer(id);
+  const customer = await loadCustomer(id);
 
   if (!customer || !customer.active || customer.status !== "ready") {
     notFound();

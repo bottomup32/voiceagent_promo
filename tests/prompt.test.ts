@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompts } from "../lib/prompt";
+import { buildPrompts, resolvePrompts } from "../lib/prompt";
 import type { BusinessProfile } from "../lib/types";
 
 const profile: BusinessProfile = {
@@ -61,5 +61,78 @@ describe("buildPrompts", () => {
 
   it("starts unedited", () => {
     expect(prompts.edited).toBe(false);
+  });
+});
+
+describe("resolvePrompts", () => {
+  const cafe: BusinessProfile = {
+    name: "Blue Bottle",
+    category: "Coffee shop",
+    address: "1 Main St",
+    hours: [],
+    services: [],
+    highlights: [],
+    policies: {},
+    faqs: [],
+  };
+
+  it("keeps generated prompts in step with the data when nobody has edited them", () => {
+    const current = buildPrompts(cafe, "Alex");
+    // The editor posts the prompts back untouched alongside a new agent name.
+    const next = resolvePrompts({
+      current,
+      submitted: current,
+      profile: cafe,
+      agentName: "Sam",
+    });
+    expect(next.edited).toBe(false);
+    expect(next.greeting).toContain("this is Sam!");
+  });
+
+  it("does not mark prompts edited when a save carries them back unchanged", () => {
+    const current = buildPrompts(cafe, "Alex");
+    const next = resolvePrompts({
+      current,
+      submitted: current,
+      profile: cafe,
+      agentName: "Alex",
+    });
+    expect(next.edited).toBe(false);
+  });
+
+  it("marks prompts edited once the text actually differs", () => {
+    const current = buildPrompts(cafe, "Alex");
+    const next = resolvePrompts({
+      current,
+      submitted: { ...current, greeting: "Say hi." },
+      profile: cafe,
+      agentName: "Alex",
+    });
+    expect(next.edited).toBe(true);
+    expect(next.greeting).toBe("Say hi.");
+  });
+
+  it("leaves hand-written prompts alone when the data changes", () => {
+    const current = { ...buildPrompts(cafe, "Alex"), edited: true };
+    const next = resolvePrompts({
+      current,
+      submitted: current,
+      profile: { ...cafe, address: "2 Main St" },
+      agentName: "Sam",
+    });
+    expect(next).toEqual(current);
+  });
+
+  it("rebuilds hand-written prompts when asked to", () => {
+    const current = { ...buildPrompts(cafe, "Alex"), edited: true };
+    const next = resolvePrompts({
+      current,
+      submitted: current,
+      profile: cafe,
+      agentName: "Sam",
+      regenerate: true,
+    });
+    expect(next.edited).toBe(false);
+    expect(next.greeting).toContain("this is Sam!");
   });
 });
