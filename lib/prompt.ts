@@ -43,11 +43,17 @@ export function buildLivePrompt(profile: BusinessProfile, agentName: string): st
       profile.category ? `, a ${profile.category}` : ""
     }${city(profile) ? ` in ${city(profile)}` : ""}.`,
     "",
+    "Language:",
+    "- Open in English, spoken in a standard American accent. While you are speaking English, never drift into a British, Australian, or Irish accent.",
+    "- If the caller speaks to you in another language, switch to that language on your very next turn and keep speaking it until they go back or ask you to.",
+    "- Follow the language they are actually speaking, not the one they name. Do not fall back to English to be safe, and do not ask permission to switch.",
+    "- Your voice carries its own accent in every language. That is fine. Never apologise for it or remark on it.",
+    "- Say the business name as it is written. Give numbers, times, and addresses the way a local speaker of the caller's language would say them.",
+    "",
     "How to speak:",
-    "- Speak American English in a standard US accent. Never drift into a British, Australian, or Irish accent.",
     "- Bright and upbeat, with a smile in your voice. You are glad the phone rang.",
     "- Brisk, natural pace. Sound like a real person at a busy front desk, not a script being read.",
-    "- Use contractions and everyday phrasing: \"we're\", \"sure thing\", \"you got it\", \"let me check on that\".",
+    "- Use contractions and everyday phrasing: \"we're\", \"sure thing\", \"you got it\", \"let me check on that\". In another language, use its equivalents.",
     "- Drop in short backchannels while the caller talks: \"mm-hm\", \"right\", \"got it\".",
     "- Keep each turn to one or two short sentences, then stop and listen.",
     "- Repeat names, times, and phone numbers back to confirm them.",
@@ -77,6 +83,7 @@ export function buildBackendPrompt(profile: BusinessProfile, agentName: string):
     "",
     "Rules:",
     "- Answer strictly from the profile. If the profile does not cover it, say so plainly and suggest the caller be offered a callback.",
+    "- Reply in the same language the question was asked in, so the receptionist can say your answer as it stands.",
     "- Keep answers short and speakable: no lists, no markdown, no more than two sentences.",
     "- For a booking, a reservation, or a message, collect the caller's name, phone number, and preferred time, then confirm the details back.",
     "- Never invent prices, hours, or availability.",
@@ -87,8 +94,33 @@ export function buildBackendPrompt(profile: BusinessProfile, agentName: string):
 }
 
 export function buildGreetingPrompt(profile: BusinessProfile, agentName: string): string {
-  return `Greet the caller now, brightly and in a standard American accent. Say: "Thanks for calling ${profile.name}, this is ${agentName}! How can I help you today?" Then pause and listen.`;
+  // The guide's recipe for an assistant-led opening: name the language, give
+  // the words, and say plainly that you speak before the caller does.
+  return [
+    "Speak first. Do not wait for the caller to say anything.",
+    `Greet them in English, brightly and in a standard American accent. Say: "Thanks for calling ${profile.name}, this is ${agentName}! How can I help you today?"`,
+    "Then stop and listen. If they answer in another language, carry on in that language.",
+  ].join(" ");
 }
+
+/**
+ * The words inside the greeting, for `session.commentary.append`, which carries
+ * something to say rather than something to do. The operator can rewrite the
+ * greeting freely, so fall back to the whole thing when it has no quoted line.
+ */
+export function spokenGreeting(greeting: string): string {
+  const quoted = /"([^"]{4,})"/.exec(greeting);
+  return (quoted?.[1] ?? greeting).trim();
+}
+
+/**
+ * Bumped whenever the wording changes in a way a saved record should pick up.
+ * `lib/store.ts` rebuilds prompts nobody has edited when it sees an older one.
+ *
+ * 2: speak the caller's language, and say plainly that the receptionist opens
+ *    the call rather than waiting.
+ */
+export const PROMPT_VERSION = 2;
 
 export function buildPrompts(
   profile: BusinessProfile,
@@ -99,6 +131,7 @@ export function buildPrompts(
     backend: buildBackendPrompt(profile, agentName),
     greeting: buildGreetingPrompt(profile, agentName),
     edited: false,
+    version: PROMPT_VERSION,
   };
 }
 

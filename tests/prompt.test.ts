@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompts, resolvePrompts } from "../lib/prompt";
+import { buildPrompts, resolvePrompts, spokenGreeting } from "../lib/prompt";
 import type { BusinessProfile } from "../lib/types";
 
 const profile: BusinessProfile = {
@@ -50,7 +50,7 @@ describe("buildPrompts", () => {
   });
 
   it("pins the accent and the energy so the voice does not drift", () => {
-    expect(prompts.live).toContain("standard US accent");
+    expect(prompts.live).toContain("standard American accent");
     expect(prompts.live).toContain("upbeat");
     expect(prompts.greeting).toContain("standard American accent");
   });
@@ -180,5 +180,67 @@ describe("hours that research could not find", () => {
     expect(partial.live).toContain("Monday: 09:00 to 17:00");
     expect(partial.live).toContain("Sunday: Closed");
     expect(partial.live).not.toContain("Tuesday");
+  });
+});
+
+describe("speaking the caller's language", () => {
+  const prompts = buildPrompts(profile, "Alex");
+
+  it("opens in English", () => {
+    expect(prompts.live).toContain("Open in English");
+    expect(prompts.greeting).toContain("Greet them in English");
+  });
+
+  it("tells the receptionist to follow the caller into another language", () => {
+    expect(prompts.live).toContain("switch to that language on your very next turn");
+    expect(prompts.live).toContain("keep speaking it until they go back");
+  });
+
+  it("does not let it retreat to English or ask permission first", () => {
+    expect(prompts.live).toContain("Do not fall back to English to be safe");
+    expect(prompts.live).toContain("do not ask permission to switch");
+  });
+
+  it("stops it apologising for the accent it cannot change", () => {
+    // The voice is fixed for the session, so its accent carries into every
+    // language. Saying sorry for that every turn would be worse than the accent.
+    expect(prompts.live).toContain("Never apologise for it");
+  });
+
+  it("keeps the old rule that English must not drift, without blocking other languages", () => {
+    expect(prompts.live).toContain(
+      "While you are speaking English, never drift into a British, Australian, or Irish accent",
+    );
+  });
+
+  it("asks the backend to answer in the language it was asked in", () => {
+    expect(prompts.backend).toContain("Reply in the same language the question was asked in");
+  });
+});
+
+describe("opening the call", () => {
+  const prompts = buildPrompts(profile, "Alex");
+
+  it("says plainly that the receptionist goes first", () => {
+    expect(prompts.greeting).toContain("Speak first.");
+    expect(prompts.greeting).toContain("Do not wait for the caller");
+  });
+
+  it("hands the rescue the words, not the instruction", () => {
+    expect(spokenGreeting(prompts.greeting)).toBe(
+      "Thanks for calling Joe's Pizza, this is Alex! How can I help you today?",
+    );
+  });
+
+  it("falls back to the whole text when an operator rewrites it without quotes", () => {
+    expect(spokenGreeting("Say hello and ask what they need.")).toBe(
+      "Say hello and ask what they need.",
+    );
+  });
+
+  it("ignores a stray pair of quotes too short to be a greeting", () => {
+    expect(spokenGreeting('Greet them. Use "hi" and nothing else.')).toBe(
+      'Greet them. Use "hi" and nothing else.',
+    );
   });
 });

@@ -54,6 +54,8 @@ export type CustomerPrompts = {
   backend: string;
   greeting: string;
   edited: boolean;
+  /** Which generation of `buildPrompts` wrote these; absent on old records. */
+  version?: number;
 };
 
 export type CustomerStatus = "researching" | "ready" | "error";

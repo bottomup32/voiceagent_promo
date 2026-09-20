@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CallAudio, resolveCallSound } from "@/lib/call-audio";
 import { readJson } from "@/lib/http";
 import { Ringtone } from "@/lib/ringtone";
+import { spokenGreeting } from "@/lib/prompt";
 import { appendFragment } from "@/lib/transcript";
 import type { CallSound, CallState, TranscriptEntry } from "@/lib/types";
 
@@ -16,7 +17,17 @@ type LiveEvent = {
   error?: { message?: string };
   reason?: string;
   delegation?: { id?: string };
+  client_event_id?: string;
 };
+
+/**
+ * `session.instructions.append` is the documented way to make the receptionist
+ * speak first, but it carries something to *do*, and a model that decides to
+ * wait leaves the caller listening to silence. `session.commentary.append`
+ * carries something to *say*. Send the instruction, and if nothing has been
+ * said by the time this is up, hand over the words themselves.
+ */
+const GREETING_RESCUE_MS = 2500;
 
 const ICE_TIMEOUT_MS = 2000;
 const CLOSE_TIMEOUT_MS = 5000;
@@ -76,6 +87,7 @@ export function useLiveCall(
   const reportedRef = useRef(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const greetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Settings changed in the admin panel apply to the next call, since the
   // audio graph is built when the call starts.
@@ -97,6 +109,10 @@ export function useLiveCall(
     if (tickRef.current) {
       clearInterval(tickRef.current);
       tickRef.current = null;
+    }
+    if (greetTimerRef.current) {
+      clearTimeout(greetTimerRef.current);
+      greetTimerRef.current = null;
     }
     dcRef.current?.close();
     dcRef.current = null;
@@ -170,6 +186,15 @@ export function useLiveCall(
             delegation_id: null,
             content: greeting,
           });
+          greetTimerRef.current = setTimeout(() => {
+            greetTimerRef.current = null;
+            send({
+              type: "session.commentary.append",
+              event_id: `greet_say_${Date.now()}`,
+              delegation_id: null,
+              content: spokenGreeting(greeting),
+            });
+          }, GREETING_RESCUE_MS);
           break;
         }
         case "session.input_transcript.delta":
@@ -177,7 +202,14 @@ export function useLiveCall(
           if (!event.delta) break;
           const speaker =
             event.type === "session.input_transcript.delta" ? "caller" : "receptionist";
-          if (speaker === "receptionist") setThinking(false);
+          if (speaker === "receptionist") {
+            setThinking(false);
+            // It spoke. The rescue would only talk over it.
+            if (greetTimerRef.current) {
+              clearTimeout(greetTimerRef.current);
+              greetTimerRef.current = null;
+            }
+          }
           const next = appendFragment(transcriptRef.current, {
             speaker,
             delta: event.delta,

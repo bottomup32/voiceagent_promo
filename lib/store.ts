@@ -1,5 +1,6 @@
 import { getStore } from "./kv";
 import { fallbackName, parseMapsUrl } from "./maps";
+import { PROMPT_VERSION, buildPrompts } from "./prompt";
 import type { Customer } from "./types";
 import { DEFAULT_CALL_SOUND, DEFAULT_VOICE } from "./types";
 
@@ -11,7 +12,18 @@ const key = (id: string) => `customers:${id}`;
  * Maps link, and older ones carry the retired default voice. Fix both on read
  * so every caller can rely on the current shape.
  */
-function normalize(customer: Customer): Customer {
+export function normalize(customer: Customer): Customer {
+  // Prompts nobody has touched follow the current wording, so a record saved
+  // before the receptionist learned to open the call, or to answer in the
+  // caller's language, picks both up without anyone reopening it. A prompt
+  // written by hand is left exactly as it was.
+  if (!customer.prompts?.edited && customer.prompts?.version !== PROMPT_VERSION) {
+    customer = {
+      ...customer,
+      prompts: buildPrompts(customer.profile, customer.agentName),
+    };
+  }
+
   // "quartz" was the old default and speaks with an Australian accent. Records
   // still carrying it never had a voice chosen for them, so move them to the
   // North American default; a voice picked by hand is left alone.
