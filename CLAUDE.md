@@ -43,12 +43,17 @@ Do not mix these up. They are separate systems with separate credentials.
 - **Voice** is OpenAI **GPT-Live-1** (`gpt-live-1`), a different API from the
   Realtime API: sessions are created at `POST /v1/live/sessions` with the SDP
   offer in the body, not with an ephemeral client secret. Needs `OPENAI_API_KEY`.
-- **Research** has two providers behind `lib/research-runner.ts`. Locally it
-  shells out to the **Claude Code CLI** in headless mode (`lib/claude-cli.ts`),
-  which runs on the operator's Claude subscription and costs nothing per run.
-  On a host with no CLI to spawn it calls the **Anthropic API** and needs
-  `ANTHROPIC_API_KEY`. `resolveProvider()` picks the API when `VERCEL` is set;
-  `RESEARCH_PROVIDER` overrides either way.
+- **Research** has three providers behind `lib/research-runner.ts`. A
+  subscription only ever works through a CLI signed in on a machine, so locally
+  it shells out to the **Claude Code CLI** in headless mode
+  (`lib/claude-cli.ts`), which runs on the operator's Claude subscription and
+  costs nothing per run. A serverless host has no CLI to spawn, so it uses the
+  **OpenAI Responses API** with its `web_search` tool — the same key the voice
+  already needs — or the **Anthropic API** when only `ANTHROPIC_API_KEY` is
+  there. `resolveProvider()` decides; `RESEARCH_PROVIDER` overrides.
+
+  One run is two calls and takes over a minute, which is longer than a Vercel
+  Hobby function lives. `isResearchStalled()` is what makes that visible.
 
 ## The call
 
@@ -84,10 +89,12 @@ American ones and `gleam` is the default.
 
 ## Research
 
-`lib/research.ts` runs two CLI passes: one with `WebSearch`/`WebFetch` that writes
-a markdown briefing, then one with no tools that turns the briefing into the
-structured profile. Keeping them apart is deliberate: the second pass copies, it
-does not research.
+`lib/research.ts` runs two passes: one with web search that writes a markdown
+briefing, then one with no tools that turns the briefing into the structured
+profile. Keeping them apart is deliberate: the second pass copies, it does not
+research. Sources come from what the provider says it cited, then the briefing's
+own links; `cleanSourceUrl()` strips the tracking a search tool bolts on and
+drops results pages, because the Sources panel is shown to the business.
 
 The **business name is the subject**. A website URL, a Google Maps link, and
 operator notes are references that disambiguate; a Maps link on its own still

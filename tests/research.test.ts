@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildArgs, extractJson } from "../lib/claude-cli";
 import {
   buildDossierPrompt,
+  cleanSourceUrl,
   buildProfilePrompt,
   dedupeSources,
   urlsInText,
@@ -113,5 +114,51 @@ describe("dedupeSources", () => {
       { url: "https://a.com", title: "A" },
       { url: "https://b.com", title: "https://b.com" },
     ]);
+  });
+});
+
+describe("cleanSourceUrl", () => {
+  it("strips the tracking a search tool bolted on", () => {
+    expect(
+      cleanSourceUrl("https://tartinebakery.com/menu?utm_source=openai&utm_medium=x"),
+    ).toBe("https://tartinebakery.com/menu");
+  });
+
+  it("keeps the parameters a page actually needs", () => {
+    expect(cleanSourceUrl("https://example.com/menu?id=7&utm_source=openai")).toBe(
+      "https://example.com/menu?id=7",
+    );
+  });
+
+  it("drops a search results page, which is a route and not a source", () => {
+    expect(cleanSourceUrl("https://www.google.com/maps/search/Tartine")).toBeNull();
+    expect(cleanSourceUrl("https://www.bing.com/search?q=tartine")).toBeNull();
+  });
+
+  it("keeps a Maps listing, which is one", () => {
+    expect(cleanSourceUrl("https://www.google.com/maps/place/Tartine+Bakery")).toBe(
+      "https://www.google.com/maps/place/Tartine+Bakery",
+    );
+  });
+
+  it("refuses anything that is not a web address", () => {
+    expect(cleanSourceUrl("javascript:alert(1)")).toBeNull();
+    expect(cleanSourceUrl("not a url")).toBeNull();
+  });
+
+  it("cleans the urls it finds in a briefing", () => {
+    const found = urlsInText(
+      "See https://tartinebakery.com?utm_source=openai and https://www.google.com/search?q=x.",
+    );
+    expect(found.map((source) => source.url)).toEqual(["https://tartinebakery.com"]);
+    expect(found[0].title).toBe("tartinebakery.com");
+  });
+
+  it("does not list the same page twice because of its tracking", () => {
+    const deduped = dedupeSources([
+      { url: "https://tartinebakery.com/menu?utm_source=openai", title: "Menu" },
+      { url: "https://tartinebakery.com/menu", title: "Menu again" },
+    ]);
+    expect(deduped).toHaveLength(1);
   });
 });

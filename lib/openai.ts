@@ -1,4 +1,7 @@
-const OPENAI_BASE = "https://api.openai.com/v1";
+/** Overridable so a proxy, a gateway, or a local stand-in can take the calls. */
+function base(): string {
+  return (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+}
 
 export class OpenAIError extends Error {
   status: number;
@@ -24,6 +27,36 @@ async function readError(response: Response): Promise<string> {
     return parsed?.error?.message || text;
   } catch {
     return text || response.statusText;
+  }
+}
+
+/**
+ * `fetch` reports a connection failure as "fetch failed", which tells nobody
+ * where to look. Say which endpoint went quiet.
+ */
+async function post(
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+): Promise<Response> {
+  const url = `${base()}${path}`;
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (cause) {
+    if (cause instanceof OpenAIError) throw cause;
+    const reason =
+      cause instanceof Error && cause.name === "TimeoutError"
+        ? `did not answer within ${Math.round(timeoutMs / 1000)}s`
+        : "could not be reached";
+    throw new OpenAIError(`OpenAI at ${url} ${reason}.`, 502);
   }
 }
 
@@ -58,15 +91,7 @@ export async function createResponse(
   request: ResponsesRequest,
   timeoutMs = 120_000,
 ): Promise<ResponsesResult> {
-  const response = await fetch(`${OPENAI_BASE}/responses`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  const response = await post("/responses", request, timeoutMs);
 
   if (!response.ok) {
     throw new OpenAIError(await readError(response), response.status);
@@ -118,15 +143,11 @@ export async function createLiveSession(
   sdp: string,
   timeoutMs = 30_000,
 ): Promise<LiveSessionResult> {
-  const response = await fetch(`${OPENAI_BASE}/live/sessions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ session, transport: { type: "webrtc", sdp } }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  const response = await post(
+    "/live/sessions",
+    { session, transport: { type: "webrtc", sdp } },
+    timeoutMs,
+  );
 
   if (!response.ok) {
     throw new OpenAIError(await readError(response), response.status);

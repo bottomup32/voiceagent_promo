@@ -151,7 +151,10 @@ export async function researchBusiness(inputs: ResearchInputs): Promise<Research
   const parsed = extractJson(profileRun.text) as RawProfile;
   const profile = stripEmpties(parsed);
 
+  // What the provider says it read comes first: it knows, where the briefing
+  // only shows what the model chose to write down.
   const sources = dedupeSources([
+    ...(dossierRun.citations ?? []),
     ...(parsed.sources ?? []),
     ...urlsInText(dossierRun.text),
   ]);
@@ -186,27 +189,70 @@ export async function researchBusiness(inputs: ResearchInputs): Promise<Research
   };
 }
 
+/**
+ * Tracking that a search tool bolted on. The Sources panel is shown to the
+ * business itself, so the links there should look like links they could have
+ * sent us themselves.
+ */
+const TRACKING_PARAMS = /^(utm_|ref$|referrer$|fbclid$|gclid$|msclkid$|_ga$)/i;
+
+/** A results page is how the model got somewhere, not a source for anything. */
+const SEARCH_PAGES = [
+  /^(www\.)?google\.[a-z.]+$/i,
+  /^(www\.)?bing\.com$/i,
+  /^(www\.)?duckduckgo\.com$/i,
+  /^search\./i,
+];
+
+export function cleanSourceUrl(raw: string): string | null {
+  const trimmed = raw.replace(/[.,;]+$/, "");
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+
+  for (const key of [...url.searchParams.keys()]) {
+    if (TRACKING_PARAMS.test(key)) url.searchParams.delete(key);
+  }
+
+  const isSearchHost = SEARCH_PAGES.some((pattern) => pattern.test(url.hostname));
+  if (isSearchHost && !/^\/maps\/place\//.test(url.pathname)) return null;
+
+  const text = url.toString().replace(/\?$/, "");
+  // A bare domain reads better without the slash the URL parser adds.
+  return url.pathname === "/" && !url.search && !url.hash
+    ? text.replace(/\/$/, "")
+    : text;
+}
+
 export function urlsInText(text: string): ResearchSource[] {
   const matches = text.match(/https?:\/\/[^\s)<>\]"']+/g) ?? [];
-  return matches.map((url) => {
-    const clean = url.replace(/[.,;]+$/, "");
-    let title = clean;
+  const out: ResearchSource[] = [];
+  for (const match of matches) {
+    const url = cleanSourceUrl(match);
+    if (!url) continue;
+    let title = url;
     try {
-      title = new URL(clean).hostname.replace(/^www\./, "");
+      title = new URL(url).hostname.replace(/^www\./, "");
     } catch {
-      // Keep the raw URL as the title.
+      // Keep the cleaned URL as the title.
     }
-    return { url: clean, title };
-  });
+    out.push({ url, title });
+  }
+  return out;
 }
 
 export function dedupeSources(sources: ResearchSource[]): ResearchSource[] {
   const seen = new Set<string>();
   const out: ResearchSource[] = [];
   for (const source of sources) {
-    if (!source?.url || seen.has(source.url)) continue;
-    seen.add(source.url);
-    out.push({ url: source.url, title: source.title || source.url });
+    const url = source?.url ? cleanSourceUrl(source.url) : null;
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push({ url, title: source.title || url });
   }
   return out.slice(0, 25);
 }
