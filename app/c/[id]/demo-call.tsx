@@ -1,13 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MapPin, Phone } from "lucide-react";
+import { Info, MapPin, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { CallPanel } from "@/components/call/CallPanel";
 import { Transcript } from "@/components/call/Transcript";
 import { BusinessKnowledge } from "@/components/public/BusinessKnowledge";
 import { PromptView } from "@/components/public/PromptView";
 import { ContactButtons } from "@/components/public/ContactButtons";
+import { GoLive } from "@/components/public/GoLive";
+import { HowItWorks } from "@/components/public/HowItWorks";
+import { MissedCalls } from "@/components/public/MissedCalls";
+import { PhoneRinging } from "@/components/public/illustrations";
 import { ScenarioTeaser } from "@/components/public/ScenarioTeaser";
 import { SourcesPanel } from "@/components/research/SourcesPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -121,26 +125,31 @@ export function DemoCall({
         </span>
       </header>
 
-      <Card className="border-primary/30 bg-primary/5 rounded-xl border shadow-none">
-        <CardContent className="space-y-3 p-4 md:p-6">
-          <p className="ta-headline-2">This is a demo, not your phone line.</p>
-          <p className="ta-body-2-reading text-muted-foreground">
-            Nobody at {name} set this up. We researched the business from public
-            sources and built a receptionist from what we found, so you can hear
-            what your callers would hear. When you want it answering your real
-            number, that part is a conversation with us.
-          </p>
-          <ContactButtons mailto={mailto} />
-        </CardContent>
-      </Card>
+      <div className="bg-muted/50 flex items-start gap-3 rounded-xl p-3">
+        <Info className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+        <p className="ta-caption-1 text-muted-foreground">
+          This is a demo, not {name}&rsquo;s phone line. Nobody there set it up —
+          we researched the business from public sources and built a receptionist
+          from what we found, so you can hear what your callers would hear.
+        </p>
+      </div>
 
       <Card className="rounded-xl border shadow-none">
         <CardHeader className="gap-2 text-center">
-          <CardTitle className="ta-title-3">{name}</CardTitle>
-          {category ? (
-            <p className="ta-label-1 text-muted-foreground">{category}</p>
-          ) : null}
-          <div className="flex flex-col items-center gap-1 pt-1">
+          <PhoneRinging className="text-foreground/70 mx-auto w-44 md:w-52" />
+          <CardTitle className="ta-title-3">
+            Call {name} and someone answers
+          </CardTitle>
+          <p className="ta-body-2-reading text-muted-foreground mx-auto max-w-md">
+            {agentName} is a voice on the phone, not a menu and not a chatbot.
+            Ask what you would ask if you were a customer — the hours, the
+            prices, whether you need to book.
+          </p>
+          <div className="flex flex-col items-center gap-1 pt-2">
+            <span className="ta-label-1">{name}</span>
+            {category ? (
+              <span className="ta-caption-1 text-muted-foreground">{category}</span>
+            ) : null}
             {address ? (
               <span className="ta-caption-1 flex items-center gap-1.5 text-muted-foreground">
                 <MapPin className="size-3.5" aria-hidden />
@@ -211,7 +220,17 @@ export function DemoCall({
         </CardContent>
       </Card>
 
-      <ScenarioTeaser customerId={customerId} count={SCENARIO_COUNT} />
+      <HowItWorks agentName={agentName} businessName={name} />
+
+      <MissedCalls businessName={name} />
+
+      <ScenarioTeaser
+        customerId={customerId}
+        category={category}
+        count={SCENARIO_COUNT}
+      />
+
+      <GoLive agentName={agentName} businessName={name} mailto={mailto} />
 
       <Card className="rounded-xl border shadow-none">
         <CardHeader>
