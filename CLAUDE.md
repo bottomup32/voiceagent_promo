@@ -168,6 +168,19 @@ about the office rather than the person, and read by nothing. The IP is still
 used for the per-IP rate limit on `/api/session`; it is simply never written
 down.
 
+Several people can be on one demo at once, and gpt-live-1 is rate limited by
+**concurrent sessions across the whole account** (25 on tier 1), so one busy
+demo must not spend what the others need. `/api/session` writes the call record
+*before* asking OpenAI for a session, then looks again and stands down if it is
+not among the oldest `CONCURRENT_PER_CUSTOMER` reservations — checking first and
+writing second left a gap in which every simultaneous caller read an empty demo.
+A session that fails takes its reservation back. `demoAllowance` counts calls
+that are still on the line at their elapsed time for the same reason: counting
+only finished calls let a ten minute demo hand out an hour.
+
+The per-IP limiter in that route is per-instance memory and only thins bursts;
+the allowance is the real protection and it is stored.
+
 Admin test calls are tagged `isTest` and excluded from customer-facing numbers.
 A call is a test because the admin test panel said so in the `/api/session`
 body, not because the request carried an admin cookie — the cookie is

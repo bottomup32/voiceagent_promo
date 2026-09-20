@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { nanoid } from "nanoid";
 import { getCustomer } from "@/lib/store";
-import { listCalls, saveCall } from "@/lib/calls";
+import { deleteCall, listCalls, saveCall } from "@/lib/calls";
 import { visitorId } from "@/lib/visitor";
-import { demoAllowance } from "@/lib/analytics";
+import { demoAllowance, inFlightCalls } from "@/lib/analytics";
 import { DEFAULT_DEMO_MINUTES } from "@/lib/types";
 import { isAdminRequest } from "@/lib/auth";
 import { OpenAIError, createLiveSession } from "@/lib/openai";
@@ -15,6 +15,21 @@ export const maxDuration = 60;
 
 const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 60_000;
+
+/**
+ * How many people may be on one demo at the same moment. Several colleagues
+ * trying it together is the point, but gpt-live-1 is rate limited by concurrent
+ * sessions across the whole account — 25 on tier 1 — so one busy demo must not
+ * be able to spend every session the other demos need.
+ */
+const CONCURRENT_PER_CUSTOMER = 4;
+
+/**
+ * A per-instance memory of who has dialled recently. Serverless runs many
+ * instances, so this thins out bursts rather than enforcing an exact number;
+ * the real protection against one prospect running up the bill is the demo
+ * allowance, which is stored and shared.
+ */
 const recentByIp = new Map<string, number[]>();
 
 function rateLimited(key: string): boolean {
@@ -22,6 +37,14 @@ function rateLimited(key: string): boolean {
   const hits = (recentByIp.get(key) ?? []).filter((at) => now - at < RATE_WINDOW_MS);
   hits.push(now);
   recentByIp.set(key, hits);
+
+  // Without this the map keeps every address this instance has ever seen.
+  if (recentByIp.size > 5000) {
+    for (const [ip, times] of recentByIp) {
+      if (times.every((at) => now - at >= RATE_WINDOW_MS)) recentByIp.delete(ip);
+    }
+  }
+
   return hits.length > RATE_LIMIT;
 }
 
@@ -83,13 +106,25 @@ export async function POST(request: Request) {
   // test call does not spend it, which is why this runs after isTest.
   if (!isTest) {
     let allowance;
+    let live: number;
     try {
+      const calls = await listCalls(customer.id);
+      live = inFlightCalls(calls).length;
       allowance = demoAllowance(
-        await listCalls(customer.id),
+        calls,
         customer.demoMinutes ?? DEFAULT_DEMO_MINUTES,
       );
     } catch (error) {
       return jsonError(error);
+    }
+    if (live >= CONCURRENT_PER_CUSTOMER) {
+      return NextResponse.json(
+        {
+          error:
+            "This demo already has as many people on it as it can take at once. Try again in a moment.",
+        },
+        { status: 429 },
+      );
     }
     if (allowance.exhausted) {
       return NextResponse.json(
@@ -101,6 +136,54 @@ export async function POST(request: Request) {
         },
         { status: 403 },
       );
+    }
+  }
+
+  // The record is written before OpenAI is asked for a session, so that the
+  // next person to dial can see this call already counting. Creating it
+  // afterwards left a window the width of an OpenAI round trip in which every
+  // simultaneous caller read an empty demo and was waved through.
+  const call: CallLog = {
+    id: nanoid(12),
+    customerId: customer.id,
+    liveSessionId: "",
+    startedAt: new Date().toISOString(),
+    status: "started",
+    transcript: [],
+    userAgent: request.headers.get("user-agent") ?? undefined,
+    visitorId: await visitorId(),
+    isTest,
+  };
+  try {
+    await saveCall(call);
+  } catch (error) {
+    return jsonError(error);
+  }
+
+  // Reserving and then looking again is what makes the cap hold when several
+  // people dial in the same instant: checking first and writing second leaves
+  // a gap in which everyone reads an empty demo. Whoever is holding the oldest
+  // reservations keeps them, decided the same way on every instance, and the
+  // rest stand down.
+  if (!isTest) {
+    try {
+      const inFlight = inFlightCalls(await listCalls(customer.id)).sort(
+        (a, b) => a.startedAt.localeCompare(b.startedAt) || a.id.localeCompare(b.id),
+      );
+      const place = inFlight.findIndex((entry) => entry.id === call.id);
+      if (place >= CONCURRENT_PER_CUSTOMER) {
+        await deleteCall(customer.id, call.id).catch(() => undefined);
+        return NextResponse.json(
+          {
+            error:
+              "This demo already has as many people on it as it can take at once. Try again in a moment.",
+          },
+          { status: 429 },
+        );
+      }
+    } catch (error) {
+      await deleteCall(customer.id, call.id).catch(() => undefined);
+      return jsonError(error);
     }
   }
 
@@ -122,18 +205,7 @@ export async function POST(request: Request) {
       sdp,
     );
 
-    const call: CallLog = {
-      id: nanoid(12),
-      customerId: customer.id,
-      liveSessionId: session.id,
-      startedAt: new Date().toISOString(),
-      status: "started",
-      transcript: [],
-      userAgent: request.headers.get("user-agent") ?? undefined,
-      visitorId: await visitorId(),
-      isTest,
-    };
-    await saveCall(call);
+    await saveCall({ ...call, liveSessionId: session.id });
 
     return NextResponse.json({
       callId: call.id,
@@ -142,6 +214,9 @@ export async function POST(request: Request) {
       greeting: customer.prompts.greeting,
     });
   } catch (error) {
+    // No session means no call. Take the reservation back rather than leaving
+    // a record that spends the allowance and blocks a slot for ten minutes.
+    await deleteCall(customer.id, call.id).catch(() => undefined);
     const message = error instanceof Error ? error.message : String(error);
     const status = error instanceof OpenAIError ? error.status : 500;
     return NextResponse.json({ error: message }, { status });

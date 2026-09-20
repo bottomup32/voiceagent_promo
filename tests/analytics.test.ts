@@ -8,6 +8,8 @@ import {
   demoAllowance,
   distinctVisitors,
   engagement,
+  inFlightCalls,
+  inFlightSeconds,
   testCalls,
   withinDays,
   isResearchStalled,
@@ -418,5 +420,73 @@ describe("callerLines", () => {
   it("ignores blank fragments the transcript picked up", () => {
     const lines = callerLines([call("c1", "2026-09-20T10:00:00.000Z", ["  ", "x", "Real question"])]);
     expect(lines.map((line) => line.text)).toEqual(["Real question"]);
+  });
+});
+
+describe("several people on one demo at once", () => {
+  const now = Date.parse("2026-09-20T12:00:00.000Z");
+  const live = (id: string, startedSecAgo: number, over: Partial<CallLog> = {}): CallLog => ({
+    id,
+    customerId: "abc",
+    liveSessionId: "s",
+    startedAt: new Date(now - startedSecAgo * 1000).toISOString(),
+    status: "started",
+    transcript: [],
+    isTest: false,
+    ...over,
+  });
+
+  it("counts a call that is still on the line", () => {
+    expect(Math.round(inFlightSeconds([live("a", 90)], now))).toBe(90);
+  });
+
+  it("adds up everyone who is on it right now", () => {
+    const seconds = inFlightSeconds([live("a", 60), live("b", 30), live("c", 10)], now);
+    expect(Math.round(seconds)).toBe(100);
+  });
+
+  it("does not count the operator's own test call against the prospect", () => {
+    expect(inFlightSeconds([live("a", 60, { isTest: true })], now)).toBe(0);
+  });
+
+  it("stops counting a call that was abandoned without a report", () => {
+    // Past the stale window it is written off, and countableCalls picks it up
+    // instead; counting it here as well would charge for it twice.
+    expect(inFlightSeconds([live("a", 20 * 60)], now)).toBe(0);
+  });
+
+  // The bug: the allowance only looked at calls that had already finished, so
+  // everyone who dialled together saw a full allowance and got a full call.
+  it("spends the allowance while the calls are happening, not after", () => {
+    const busy = [live("a", 200), live("b", 200), live("c", 200)];
+    const left = demoAllowance(busy, 10, now);
+    expect(left.usedSec).toBe(600);
+    expect(left.exhausted).toBe(true);
+  });
+
+  it("still leaves room when only one person is on a long demo", () => {
+    const left = demoAllowance([live("a", 120)], 10, now);
+    expect(left.usedSec).toBe(120);
+    expect(left.remainingSec).toBe(480);
+    expect(left.exhausted).toBe(false);
+  });
+
+  it("counts a finished call and a running one together", () => {
+    const done: CallLog = {
+      id: "done",
+      customerId: "abc",
+      liveSessionId: "s",
+      startedAt: "2026-09-20T11:00:00.000Z",
+      status: "completed",
+      durationSec: 300,
+      transcript: [],
+      isTest: false,
+    };
+    expect(demoAllowance([done, live("a", 60)], 10, now).usedSec).toBe(360);
+  });
+
+  it("reports who is on the line, so the session route can cap it", () => {
+    const calls = [live("a", 10), live("b", 10), live("c", 10, { isTest: true })];
+    expect(inFlightCalls(calls, now).map((call) => call.id)).toEqual(["a", "b"]);
   });
 });

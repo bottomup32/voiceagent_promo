@@ -53,6 +53,25 @@ export function withinDays<T>(
   });
 }
 
+/**
+ * Calls happening right now: started, not yet reported, not old enough to be
+ * written off. Several people at one business can be on the line at the same
+ * time, so anything that asks "how much has this demo used" has to count them.
+ */
+export function inFlightCalls(calls: CallLog[], now = Date.now()): CallLog[] {
+  return calls.filter(
+    (call) => !call.isTest && call.status === "started" && !isAbandoned(call, now),
+  );
+}
+
+/** Seconds burned by calls still in progress. */
+export function inFlightSeconds(calls: CallLog[], now = Date.now()): number {
+  return inFlightCalls(calls, now).reduce((sum, call) => {
+    const elapsed = (now - new Date(call.startedAt).getTime()) / 1000;
+    return sum + (Number.isFinite(elapsed) && elapsed > 0 ? elapsed : 0);
+  }, 0);
+}
+
 /** Calls the operator made from the admin test panel. */
 export function testCalls(calls: CallLog[]): CallLog[] {
   return calls.filter((call) => call.isTest);
@@ -92,10 +111,14 @@ export function demoAllowance(
   now = Date.now(),
 ): DemoAllowance {
   const allowedSec = Math.max(0, Math.round(minutes * 60));
-  const usedSec = countableCalls(calls, now).reduce(
+  const finished = countableCalls(calls, now).reduce(
     (sum, call) => sum + (call.durationSec ?? 0),
     0,
   );
+  // Calls still on the line count as they happen. Without this, everyone who
+  // dialled at the same moment saw a full allowance and got a full call, and a
+  // ten minute demo could hand out an hour.
+  const usedSec = Math.round(finished + inFlightSeconds(calls, now));
   const remainingSec = Math.max(0, allowedSec - usedSec);
   return { allowedSec, usedSec, remainingSec, exhausted: remainingSec <= 0 };
 }

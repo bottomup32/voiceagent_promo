@@ -141,6 +141,9 @@ export function useLiveCall(
         usageRef.current ||
         (startedAtRef.current ? Math.round((Date.now() - startedAtRef.current) / 1000) : 0);
       const payload = JSON.stringify({
+        // Sent so the server can find the record directly rather than looking
+        // through every customer's calls for it.
+        customerId,
         status,
         durationSec,
         endReason,
@@ -159,7 +162,7 @@ export function useLiveCall(
         keepalive: true,
       }).catch(() => undefined);
     },
-    [],
+    [customerId],
   );
 
   const finish = useCallback(

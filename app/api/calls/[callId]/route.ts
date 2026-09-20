@@ -12,16 +12,9 @@ type Params = { params: Promise<{ callId: string }> };
 
 export async function POST(request: Request, { params }: Params) {
   const { callId } = await params;
-  const call = await findCall(callId);
-  if (!call) {
-    return NextResponse.json({ error: "Call not found." }, { status: 404 });
-  }
-  if (call.status !== "started") {
-    // A beacon can land after the normal report; keep the first result.
-    return NextResponse.json({ ok: true, alreadyReported: true });
-  }
 
   let body: {
+    customerId?: string;
     status?: CallStatus;
     durationSec?: number;
     endReason?: string;
@@ -31,6 +24,17 @@ export async function POST(request: Request, { params }: Params) {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  // The body is read first so the lookup can go straight to the right record
+  // instead of walking every customer.
+  const call = await findCall(callId, body.customerId);
+  if (!call) {
+    return NextResponse.json({ error: "Call not found." }, { status: 404 });
+  }
+  if (call.status !== "started") {
+    // A beacon can land after the normal report; keep the first result.
+    return NextResponse.json({ ok: true, alreadyReported: true });
   }
 
   const status = VALID.includes(body.status as CallStatus)

@@ -20,6 +20,13 @@ export async function saveCall(call: CallLog): Promise<CallLog> {
   return call;
 }
 
+/** Undo a reservation when the call never actually started. */
+export async function deleteCall(customerId: string, callId: string): Promise<void> {
+  const store = getStore();
+  await store.del(callKey(customerId, callId));
+  await store.removeMember(callIndex(customerId), callId);
+}
+
 export async function listCalls(customerId: string): Promise<CallLog[]> {
   const store = getStore();
   const ids = await store.members(callIndex(customerId));
@@ -32,11 +39,27 @@ export async function listCalls(customerId: string): Promise<CallLog[]> {
   return calls;
 }
 
-export async function findCall(callId: string): Promise<CallLog | null> {
+/**
+ * The caller knows which customer it was talking to, so pass `customerId` and
+ * this is one read. Without it every hang-up walks the whole customer list,
+ * which on the Redis driver is one network round trip per customer, in series,
+ * while the browser waits — and every simultaneous hang-up pays it again.
+ * The scan stays as the fallback for a client that did not send one.
+ */
+export async function findCall(
+  callId: string,
+  customerId?: string,
+): Promise<CallLog | null> {
   if (!/^[A-Za-z0-9_-]{6,32}$/.test(callId)) return null;
   const store = getStore();
-  for (const customerId of await store.members("customers")) {
-    const call = await store.getJson<CallLog>(callKey(customerId, callId));
+
+  if (customerId && /^[A-Za-z0-9_-]{6,32}$/.test(customerId)) {
+    const direct = await store.getJson<CallLog>(callKey(customerId, callId));
+    if (direct) return direct;
+  }
+
+  for (const id of await store.members("customers")) {
+    const call = await store.getJson<CallLog>(callKey(id, callId));
     if (call) return call;
   }
   return null;
