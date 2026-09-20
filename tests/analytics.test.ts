@@ -4,6 +4,7 @@ import {
   computeKpis,
   computeStats,
   countableCalls,
+  demoAllowance,
   isResearchStalled,
   formatDuration,
   statsByCustomer,
@@ -152,5 +153,59 @@ describe("isResearchStalled", () => {
     expect(
       isResearchStalled({ status: "ready", updatedAt: "2025-01-01T00:00:00.000Z" }, now),
     ).toBe(false);
+  });
+});
+
+describe("demoAllowance", () => {
+  const call = (durationSec: number, extra: Partial<CallLog> = {}): CallLog => ({
+    id: "call" + durationSec + (extra.status ?? ""),
+    customerId: "abc",
+    liveSessionId: "sess",
+    startedAt: "2026-01-01T10:00:00.000Z",
+    status: "completed",
+    durationSec,
+    transcript: [],
+    isTest: false,
+    ...extra,
+  });
+
+  it("counts a fresh demo as its full allowance", () => {
+    const left = demoAllowance([], 10);
+    expect(left.allowedSec).toBe(600);
+    expect(left.remainingSec).toBe(600);
+    expect(left.exhausted).toBe(false);
+  });
+
+  it("spends the seconds that calls actually billed", () => {
+    const left = demoAllowance([call(120), call(60)], 10);
+    expect(left.usedSec).toBe(180);
+    expect(left.remainingSec).toBe(420);
+  });
+
+  it("closes the demo once the time is gone", () => {
+    const left = demoAllowance([call(400), call(200)], 10);
+    expect(left.remainingSec).toBe(0);
+    expect(left.exhausted).toBe(true);
+  });
+
+  it("never reports a negative remainder when a call overruns", () => {
+    expect(demoAllowance([call(900)], 10).remainingSec).toBe(0);
+  });
+
+  it("does not spend the prospect's minutes on an admin test call", () => {
+    // Trying a customer's own demo is how the operator checks it works.
+    const left = demoAllowance([call(300, { isTest: true })], 10);
+    expect(left.usedSec).toBe(0);
+    expect(left.exhausted).toBe(false);
+  });
+
+  it("ignores a call that is still in flight, which has billed nothing yet", () => {
+    const live = call(0, { status: "started", startedAt: new Date().toISOString() });
+    expect(demoAllowance([live], 10).usedSec).toBe(0);
+  });
+
+  it("honours a longer allowance granted to one prospect", () => {
+    expect(demoAllowance([call(600)], 30).exhausted).toBe(false);
+    expect(demoAllowance([call(600)], 30).remainingSec).toBe(1200);
   });
 });

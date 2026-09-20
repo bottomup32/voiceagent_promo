@@ -8,17 +8,22 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { customerLink, emailBody, emailSubject, mailtoLink } from "@/lib/share";
-import type { Customer } from "@/lib/types";
+import { DEFAULT_DEMO_MINUTES, type Customer, type CustomerStats } from "@/lib/types";
+import { formatDuration } from "@/lib/analytics";
 
 type Props = {
   customer: Customer;
+  stats: CustomerStats;
   onChange: (partial: Partial<Customer>) => void;
 };
 
-export function SharePanel({ customer, onChange }: Props) {
+export function SharePanel({ customer, stats, onChange }: Props) {
   const link = customerLink(customer.id);
   const subject = emailSubject(customer.profile.name);
   const body = emailBody(customer.profile.name, customer.contactName, link);
+  const minutes = customer.demoMinutes ?? DEFAULT_DEMO_MINUTES;
+  const usedSec = stats.totalSec;
+  const spent = Math.min(1, minutes > 0 ? usedSec / (minutes * 60) : 1);
 
   function copy(text: string, message: string) {
     void navigator.clipboard.writeText(text);
@@ -50,6 +55,43 @@ export function SharePanel({ customer, onChange }: Props) {
           {customer.active
             ? "The link is live. Anyone with it can call."
             : "The demo is paused, so the link shows an unavailable message."}
+        </p>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-2">
+        <Label htmlFor="demo-minutes" className="ta-label-1">
+          Demo minutes
+        </Label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            id="demo-minutes"
+            type="number"
+            min={0}
+            step={5}
+            className="w-28"
+            value={minutes}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              if (Number.isFinite(next)) onChange({ demoMinutes: Math.max(0, next) });
+            }}
+          />
+          <span className="ta-caption-1 text-muted-foreground">
+            {formatDuration(usedSec)} used of {minutes}:00
+            {usedSec >= minutes * 60 ? " — spent, the call button is closed" : ""}
+          </span>
+        </div>
+        <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+          <div
+            className={spent >= 1 ? "bg-destructive h-full" : "bg-primary h-full"}
+            style={{ width: `${Math.round(spent * 100)}%` }}
+          />
+        </div>
+        <p className="ta-caption-1 text-muted-foreground">
+          When this runs out the demo page stops offering the call and asks them
+          to get in touch. Raise the number here to let them carry on. Your own
+          test calls do not spend it.
         </p>
       </div>
 

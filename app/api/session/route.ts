@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { nanoid } from "nanoid";
 import { getCustomer } from "@/lib/store";
-import { hashIp, saveCall } from "@/lib/calls";
+import { hashIp, listCalls, saveCall } from "@/lib/calls";
+import { demoAllowance } from "@/lib/analytics";
+import { DEFAULT_DEMO_MINUTES } from "@/lib/types";
 import { isAdminRequest } from "@/lib/auth";
 import { OpenAIError, createLiveSession } from "@/lib/openai";
 import type { CallLog } from "@/lib/types";
@@ -68,6 +70,32 @@ export async function POST(request: Request) {
   }
 
   const isTest = await isAdminRequest();
+
+  // The demo is a fixed amount of time per prospect. Running out is the nudge:
+  // the page then offers the contact form instead of the call button. An admin
+  // test call does not spend it, which is why this runs after isTest.
+  if (!isTest) {
+    let allowance;
+    try {
+      allowance = demoAllowance(
+        await listCalls(customer.id),
+        customer.demoMinutes ?? DEFAULT_DEMO_MINUTES,
+      );
+    } catch (error) {
+      return jsonError(error);
+    }
+    if (allowance.exhausted) {
+      return NextResponse.json(
+        {
+          error: `This demo has used its ${Math.round(
+            allowance.allowedSec / 60,
+          )} minutes. Ask us for more and we will open it back up.`,
+          exhausted: true,
+        },
+        { status: 403 },
+      );
+    }
+  }
 
   try {
     const session = await createLiveSession(

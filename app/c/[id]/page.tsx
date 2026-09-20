@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import { getCustomer } from "@/lib/store";
+import { listCalls } from "@/lib/calls";
+import { demoAllowance } from "@/lib/analytics";
 import { resolveCallSound } from "@/lib/call-audio";
-import { LIVE_VOICE_OPTIONS } from "@/lib/types";
+import { customerLink } from "@/lib/share";
+import { DEFAULT_DEMO_MINUTES, LIVE_VOICE_OPTIONS } from "@/lib/types";
 import { DemoCall } from "./demo-call";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +46,19 @@ export default async function CustomerDemoPage({ params }: Props) {
 
   const voice = LIVE_VOICE_OPTIONS.find((option) => option.id === customer.voice);
 
+  // How much demo time is left. A failure here must not take the page down, so
+  // the prospect gets the full allowance rather than a locked-out call button.
+  let demo;
+  try {
+    demo = demoAllowance(
+      await listCalls(customer.id),
+      customer.demoMinutes ?? DEFAULT_DEMO_MINUTES,
+    );
+  } catch (error) {
+    console.error(`Could not read demo usage for ${customer.id}:`, error);
+    demo = demoAllowance([], customer.demoMinutes ?? DEFAULT_DEMO_MINUTES);
+  }
+
   // Only what the business itself should see. Contact details, labels, notes,
   // and call history stay in the admin area.
   return (
@@ -64,6 +80,8 @@ export default async function CustomerDemoPage({ params }: Props) {
       dossier={customer.dossier}
       sources={customer.sources}
       researchedAt={customer.researchedAt}
+      demo={demo}
+      demoUrl={customerLink(customer.id)}
     />
   );
 }

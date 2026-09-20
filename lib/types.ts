@@ -58,6 +58,9 @@ export type CustomerPrompts = {
   version?: number;
 };
 
+/** How long a prospect may spend on the demo before asking us for more. */
+export const DEFAULT_DEMO_MINUTES = 10;
+
 export type CustomerStatus = "researching" | "ready" | "error";
 
 export type Customer = {
@@ -81,6 +84,8 @@ export type Customer = {
   voice: string;
   callSound?: CallSound;
   agentName: string;
+  /** Demo minutes for this prospect; absent means DEFAULT_DEMO_MINUTES. */
+  demoMinutes?: number;
   status: CustomerStatus;
   error?: string;
   createdAt: string;

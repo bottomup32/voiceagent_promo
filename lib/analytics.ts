@@ -40,6 +40,36 @@ export function countableCalls(calls: CallLog[], now = Date.now()): CallLog[] {
   );
 }
 
+/**
+ * Every prospect gets a fixed amount of demo time, and asking for more is the
+ * point at which they talk to a person. A call still in flight has reported no
+ * seconds yet, so the figure here is what has finished; the per-IP limit on
+ * /api/session is what stops anyone racing that gap.
+ *
+ * Admin test calls are excluded, the same as everywhere else, so trying a
+ * customer's demo yourself does not spend their minutes.
+ */
+export type DemoAllowance = {
+  allowedSec: number;
+  usedSec: number;
+  remainingSec: number;
+  exhausted: boolean;
+};
+
+export function demoAllowance(
+  calls: CallLog[],
+  minutes: number,
+  now = Date.now(),
+): DemoAllowance {
+  const allowedSec = Math.max(0, Math.round(minutes * 60));
+  const usedSec = countableCalls(calls, now).reduce(
+    (sum, call) => sum + (call.durationSec ?? 0),
+    0,
+  );
+  const remainingSec = Math.max(0, allowedSec - usedSec);
+  return { allowedSec, usedSec, remainingSec, exhausted: remainingSec <= 0 };
+}
+
 export function computeStats(
   calls: CallLog[],
   events: TrackEvent[],

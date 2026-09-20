@@ -30,11 +30,24 @@ Two views, one codebase:
 
 - `/admin/*` — password-gated. Route group `app/admin/(dashboard)/` carries the
   sidebar layout; `app/admin/login` sits outside it so the login page renders bare.
-- `/c/[id]` — public, unlisted. Call button, transcript, and a **read-only** panel
-  showing the knowledge, prompts, and sources. It renders no inputs, and
-  `app/c/[id]/page.tsx` hand-picks the props it passes, so operator-only fields
-  (contact, label, notes, research notes, call history) never reach the page.
-  `tests/public-view.test.ts` pins that prop list; it fails if a field is added.
+- `/c/[id]` — public, unlisted, and a sales page as much as a demo. Call button,
+  transcript, the knowledge, prompts and sources, and a standing offer to talk
+  to us (`lib/links.ts` holds the URLs). It says plainly that it is a demo and
+  not the business's phone line.
+
+  The knowledge panel renders as the form it is in the live product, because
+  the pitch is that this is the business's own copy to correct — but every
+  field is `readOnly` and touching one raises a toast asking us to make the
+  change. Nothing a prospect types is kept. `app/c/[id]/page.tsx` hand-picks
+  the props it passes, so operator-only fields (contact, label, notes, research
+  notes, call history) never reach the page; `tests/public-view.test.ts` pins
+  that prop list and fails if a field is added.
+
+  Each prospect gets `demoMinutes` (default 10) of call time, counted by
+  `demoAllowance()` over the seconds their calls actually billed. `/api/session`
+  refuses past it and the page swaps the call button for the contact card;
+  raising the number in the Share tab opens it back up. Admin test calls are
+  `isTest` and never spend it.
 
 ## Two providers, two jobs
 

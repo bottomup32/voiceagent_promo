@@ -1,19 +1,96 @@
 "use client";
 
+import { Lock, Plus } from "lucide-react";
 import { knownHours } from "@/lib/hours";
 import type { BusinessProfile } from "@/lib/types";
 
-type Props = { profile: BusinessProfile };
+type Props = {
+  profile: BusinessProfile;
+  /**
+   * Called the moment someone tries to change something. The demo is
+   * deliberately read-only, so the page answers with what to do instead.
+   */
+  onEditAttempt?: () => void;
+};
 
-function Row({ label, value }: { label: string; value?: string }) {
+/**
+ * Everything here renders as the form it is in the live product, because the
+ * point of the page is that this is the business's own copy to correct. The
+ * fields are genuinely read-only — `readOnly` rather than `disabled`, so they
+ * stay focusable and a screen reader says so — and touching one asks us to
+ * make the change.
+ */
+const FIELD =
+  "ta-body-2 h-10 w-full rounded-lg border border-input bg-transparent px-3 " +
+  "text-left outline-none transition-colors hover:border-ring/60 " +
+  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+function Field({
+  label,
+  value,
+  onEditAttempt,
+}: {
+  label: string;
+  value?: string;
+  onEditAttempt?: () => void;
+}) {
   if (!value) return null;
   return (
-    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
-      <span className="ta-caption-1 text-muted-foreground sm:w-28 sm:shrink-0 sm:pt-0.5">
-        {label}
-      </span>
-      <span className="ta-body-2">{value}</span>
-    </div>
+    <label className="block space-y-1">
+      <span className="ta-caption-1 text-muted-foreground">{label}</span>
+      <input
+        className={`${FIELD} cursor-pointer`}
+        value={value}
+        readOnly
+        onFocus={onEditAttempt}
+        onClick={onEditAttempt}
+      />
+    </label>
+  );
+}
+
+function AreaField({
+  label,
+  value,
+  onEditAttempt,
+}: {
+  label: string;
+  value?: string;
+  onEditAttempt?: () => void;
+}) {
+  if (!value) return null;
+  return (
+    <label className="block space-y-1">
+      <span className="ta-caption-1 text-muted-foreground">{label}</span>
+      <textarea
+        className={`${FIELD} h-auto min-h-20 cursor-pointer py-2`}
+        value={value}
+        readOnly
+        rows={3}
+        onFocus={onEditAttempt}
+        onClick={onEditAttempt}
+      />
+    </label>
+  );
+}
+
+/** The row that says the list is yours to grow. */
+function AddRow({
+  children,
+  onEditAttempt,
+}: {
+  children: React.ReactNode;
+  onEditAttempt?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onEditAttempt}
+      className={`${FIELD} text-muted-foreground hover:text-foreground flex items-center gap-2`}
+    >
+      <Plus className="size-4 shrink-0" aria-hidden />
+      {children}
+    </button>
   );
 }
 
@@ -32,114 +109,188 @@ function Section({
   );
 }
 
-export function BusinessKnowledge({ profile }: Props) {
+export function BusinessKnowledge({ profile, onEditAttempt }: Props) {
   // A day the research could not pin down says nothing, so it shows nothing.
   const days = knownHours(profile.hours);
+  const policies = profile.policies ?? {};
 
   return (
     <div className="space-y-6">
-      <p className="ta-caption-1 text-muted-foreground">
-        This is everything the receptionist answers from. It was collected
-        automatically, and any line of it can be corrected before you go live.
-      </p>
+      <div className="bg-muted/50 flex items-start gap-3 rounded-lg p-3">
+        <Lock className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+        <p className="ta-caption-1 text-muted-foreground">
+          This is the whole of what the receptionist knows, and it is yours to
+          edit — correct a price, fix the hours, add the questions your callers
+          actually ask. Editing is switched off while this is a demo. Tell us
+          what to change and it answers that way on the next call.
+        </p>
+      </div>
 
       <Section title="The business">
-        <div className="space-y-1.5">
-          <Row label="Name" value={profile.name} />
-          <Row label="Category" value={profile.category} />
-          <Row label="Address" value={profile.address} />
-          <Row label="Phone" value={profile.phone} />
-          <Row label="Website" value={profile.website} />
-          <Row
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Name" value={profile.name} onEditAttempt={onEditAttempt} />
+          <Field
+            label="Category"
+            value={profile.category}
+            onEditAttempt={onEditAttempt}
+          />
+          <Field label="Phone" value={profile.phone} onEditAttempt={onEditAttempt} />
+          <Field
+            label="Website"
+            value={profile.website}
+            onEditAttempt={onEditAttempt}
+          />
+          <Field
             label="Rating"
             value={profile.rating ? `${profile.rating} out of 5` : undefined}
+            onEditAttempt={onEditAttempt}
+          />
+        </div>
+        <div className="pt-3">
+          <Field
+            label="Address"
+            value={profile.address}
+            onEditAttempt={onEditAttempt}
           />
         </div>
       </Section>
 
-      {days.length ? (
-        <Section title="Hours">
-          <div className="space-y-1">
-            {days.map((hour) => (
-              <div
-                key={hour.day}
-                className={`ta-body-2 flex justify-between gap-4${
-                  hour.text === "Closed" ? " text-muted-foreground" : ""
-                }`}
-              >
-                <span>{hour.day}</span>
-                <span className="tabular-nums">{hour.text}</span>
-              </div>
-            ))}
-          </div>
-        </Section>
-      ) : null}
+      <Section title="Hours">
+        <div className="space-y-2">
+          {days.map((hour) => (
+            <div key={hour.day} className="flex items-center gap-3">
+              <span className="ta-caption-1 text-muted-foreground w-24 shrink-0">
+                {hour.day}
+              </span>
+              <input
+                className={`${FIELD} cursor-pointer tabular-nums`}
+                value={hour.text}
+                readOnly
+                onFocus={onEditAttempt}
+                onClick={onEditAttempt}
+              />
+            </div>
+          ))}
+          <AddRow onEditAttempt={onEditAttempt}>
+            {days.length ? "Add a day, or a holiday" : "Add your opening hours"}
+          </AddRow>
+        </div>
+      </Section>
 
-      {profile.services?.length ? (
-        <Section title="Services">
-          <ul className="space-y-1.5">
-            {profile.services.map((service, index) => (
-              <li key={index} className="ta-body-2 flex justify-between gap-4">
-                <span>{service.name}</span>
-                {service.price ? (
-                  <span className="text-muted-foreground shrink-0">{service.price}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
+      <Section title="Services">
+        <div className="space-y-2">
+          {profile.services?.map((service, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <input
+                className={`${FIELD} cursor-pointer`}
+                value={service.name}
+                readOnly
+                onFocus={onEditAttempt}
+                onClick={onEditAttempt}
+              />
+              <input
+                className={`${FIELD} w-28 shrink-0 cursor-pointer`}
+                value={service.price ?? ""}
+                placeholder="Price"
+                readOnly
+                onFocus={onEditAttempt}
+                onClick={onEditAttempt}
+              />
+            </div>
+          ))}
+          <AddRow onEditAttempt={onEditAttempt}>Add a service or a price</AddRow>
+        </div>
+      </Section>
 
       {profile.highlights?.length ? (
         <Section title="Known for">
-          <ul className="ta-body-2 space-y-1">
+          <div className="space-y-2">
             {profile.highlights.map((highlight, index) => (
-              <li key={index} className="flex gap-2">
-                <span className="text-muted-foreground" aria-hidden>
-                  •
-                </span>
-                {highlight}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
-
-      {Object.values(profile.policies ?? {}).some(Boolean) ? (
-        <Section title="Policies">
-          <div className="space-y-1.5">
-            <Row label="Reservations" value={profile.policies?.reservations} />
-            <Row label="Walk-ins" value={profile.policies?.walkIns} />
-            <Row label="Parking" value={profile.policies?.parking} />
-            <Row label="Payment" value={profile.policies?.payment} />
-            <Row label="Cancellation" value={profile.policies?.cancellation} />
-            {profile.policies?.other?.map((entry, index) => (
-              <Row key={index} label="Also" value={entry} />
+              <input
+                key={index}
+                className={`${FIELD} cursor-pointer`}
+                value={highlight}
+                readOnly
+                onFocus={onEditAttempt}
+                onClick={onEditAttempt}
+              />
             ))}
           </div>
         </Section>
       ) : null}
 
-      {profile.faqs?.length ? (
-        <Section title="Questions callers ask">
-          <dl className="space-y-3">
-            {profile.faqs.map((faq, index) => (
-              <div key={index} className="space-y-0.5">
-                <dt className="ta-label-1">{faq.q}</dt>
-                <dd className="ta-body-2 text-muted-foreground">{faq.a}</dd>
-              </div>
+      {Object.values(policies).some(Boolean) ? (
+        <Section title="Policies">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Reservations"
+              value={policies.reservations}
+              onEditAttempt={onEditAttempt}
+            />
+            <Field
+              label="Walk-ins"
+              value={policies.walkIns}
+              onEditAttempt={onEditAttempt}
+            />
+            <Field
+              label="Parking"
+              value={policies.parking}
+              onEditAttempt={onEditAttempt}
+            />
+            <Field
+              label="Payment"
+              value={policies.payment}
+              onEditAttempt={onEditAttempt}
+            />
+            <Field
+              label="Cancellation"
+              value={policies.cancellation}
+              onEditAttempt={onEditAttempt}
+            />
+            {policies.other?.map((entry, index) => (
+              <Field
+                key={index}
+                label="Also"
+                value={entry}
+                onEditAttempt={onEditAttempt}
+              />
             ))}
-          </dl>
+          </div>
         </Section>
       ) : null}
 
-      {profile.reviewSummary ? (
-        <Section title="What reviews say">
-          <p className="ta-body-2-reading text-muted-foreground">
-            {profile.reviewSummary}
-          </p>
-        </Section>
-      ) : null}
+      <Section title="Questions callers ask">
+        <div className="space-y-3">
+          {profile.faqs?.map((faq, index) => (
+            <div key={index} className="space-y-1.5">
+              <input
+                className={`${FIELD} cursor-pointer font-medium`}
+                value={faq.q}
+                readOnly
+                onFocus={onEditAttempt}
+                onClick={onEditAttempt}
+              />
+              <textarea
+                className={`${FIELD} text-muted-foreground h-auto min-h-16 cursor-pointer py-2`}
+                value={faq.a}
+                readOnly
+                rows={2}
+                onFocus={onEditAttempt}
+                onClick={onEditAttempt}
+              />
+            </div>
+          ))}
+          <AddRow onEditAttempt={onEditAttempt}>
+            Add a question your callers ask
+          </AddRow>
+        </div>
+      </Section>
+
+      <AreaField
+        label="What reviews say"
+        value={profile.reviewSummary}
+        onEditAttempt={onEditAttempt}
+      />
     </div>
   );
 }

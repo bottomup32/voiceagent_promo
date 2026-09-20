@@ -80,6 +80,7 @@ export default function CustomerDetailPage({
         notes: partial?.notes ?? draft.notes ?? "",
         active: partial?.active ?? draft.active,
         agentName: partial?.agentName ?? draft.agentName,
+        demoMinutes: partial?.demoMinutes ?? draft.demoMinutes,
         voice: partial?.voice ?? draft.voice,
         callSound: partial?.callSound ?? draft.callSound,
         profile: partial?.profile ?? draft.profile,
@@ -295,6 +296,7 @@ export default function CustomerDetailPage({
               <TabsContent value="share" className="pt-4">
                 <SharePanel
                   customer={draft}
+                  stats={stats}
                   onChange={(partial) => setDraft({ ...draft, ...partial })}
                 />
               </TabsContent>

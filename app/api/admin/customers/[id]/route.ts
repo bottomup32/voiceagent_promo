@@ -54,6 +54,7 @@ export async function PATCH(request: Request, { params }: Params) {
     notes: string;
     active: boolean;
     agentName: string;
+    demoMinutes: number;
     voice: string;
     callSound: CallSound;
     profile: BusinessProfile;
@@ -95,6 +96,10 @@ export async function PATCH(request: Request, { params }: Params) {
     notes: body.notes !== undefined ? body.notes.trim() || undefined : customer.notes,
     active: body.active ?? customer.active,
     agentName: body.agentName?.trim() || customer.agentName,
+    demoMinutes:
+      typeof body.demoMinutes === "number" && Number.isFinite(body.demoMinutes)
+        ? Math.max(0, Math.round(body.demoMinutes))
+        : customer.demoMinutes,
     voice: body.voice ?? customer.voice,
     callSound: body.callSound ?? customer.callSound,
     profile: body.profile ?? customer.profile,

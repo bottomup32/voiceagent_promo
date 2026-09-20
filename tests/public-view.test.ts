@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Customer } from "../lib/types";
-import { DEFAULT_CALL_SOUND } from "../lib/types";
+import { DEFAULT_CALL_SOUND, DEFAULT_DEMO_MINUTES } from "../lib/types";
+import { demoAllowance } from "../lib/analytics";
+import { customerLink } from "../lib/share";
 
 /**
  * The demo page is public, so it must carry the business's own data and
@@ -25,6 +27,8 @@ function publicProps(customer: Customer) {
     dossier: customer.dossier,
     sources: customer.sources,
     researchedAt: customer.researchedAt,
+    demo: demoAllowance([], customer.demoMinutes ?? DEFAULT_DEMO_MINUTES),
+    demoUrl: customerLink(customer.id),
   };
 }
 
@@ -91,6 +95,8 @@ describe("public demo props", () => {
         "callSound",
         "category",
         "customerId",
+        "demo",
+        "demoUrl",
         "dossier",
         "name",
         "phone",
