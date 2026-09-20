@@ -182,14 +182,21 @@ export function BusinessKnowledge({ profile, onEditAttempt }: Props) {
           {profile.services?.map((service, index) => (
             <div key={index} className="flex items-center gap-2">
               <input
-                className={`${FIELD} cursor-pointer`}
+                className={`${FIELD} min-w-0 cursor-pointer`}
                 value={service.name}
                 readOnly
                 onFocus={onEditAttempt}
                 onClick={onEditAttempt}
               />
+              {/*
+                FIELD carries w-full, which every other field wants. Here it has
+                to be beaten rather than appended to: two width utilities of the
+                same weight leave the later one in the stylesheet winning, and
+                w-full plus shrink-0 had the price box eating the whole row and
+                squeezing the service name down to nothing.
+              */}
               <input
-                className={`${FIELD} w-28 shrink-0 cursor-pointer`}
+                className={`${FIELD} w-28! shrink-0 cursor-pointer`}
                 value={service.price ?? ""}
                 placeholder="Price"
                 readOnly

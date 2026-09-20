@@ -244,7 +244,12 @@ export default function CustomerDetailPage({
                 <TabsTrigger value="crm">CRM</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
                 <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
-                <TabsTrigger value="schedule">Schedule</TabsTrigger>
+                <TabsTrigger value="schedule">
+                  Schedule
+                  <span className="ta-caption-2 text-muted-foreground ml-1.5">
+                    (Mockup)
+                  </span>
+                </TabsTrigger>
                 <TabsTrigger value="prompt">Prompt</TabsTrigger>
                 <TabsTrigger value="sources">Sources</TabsTrigger>
                 <TabsTrigger value="share">Share</TabsTrigger>
