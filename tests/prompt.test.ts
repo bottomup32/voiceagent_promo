@@ -49,8 +49,14 @@ describe("buildPrompts", () => {
     expect(prompts.backend).toContain("Do you deliver?");
   });
 
+  it("pins the accent and the energy so the voice does not drift", () => {
+    expect(prompts.live).toContain("standard US accent");
+    expect(prompts.live).toContain("upbeat");
+    expect(prompts.greeting).toContain("standard American accent");
+  });
+
   it("names the business and the agent in the greeting", () => {
-    expect(prompts.greeting).toContain("Thank you for calling Joe's Pizza, this is Alex.");
+    expect(prompts.greeting).toContain("Thanks for calling Joe's Pizza, this is Alex!");
   });
 
   it("starts unedited", () => {

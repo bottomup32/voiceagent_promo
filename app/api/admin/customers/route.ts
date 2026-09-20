@@ -7,6 +7,7 @@ import { isMapsUrl } from "@/lib/maps";
 import { emptyProfile, researchBusiness } from "@/lib/research";
 import { buildPrompts } from "@/lib/prompt";
 import type { Customer, CustomerWithStats, ResearchInputs } from "@/lib/types";
+import { DEFAULT_CALL_SOUND, DEFAULT_VOICE } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -83,7 +84,8 @@ export async function POST(request: Request) {
     dossier: "",
     sources: [],
     prompts: buildPrompts(profile, agentName),
-    voice: process.env.LIVE_VOICE || "quartz",
+    voice: process.env.LIVE_VOICE || DEFAULT_VOICE,
+    callSound: DEFAULT_CALL_SOUND,
     agentName,
     status: "researching",
     createdAt: now,

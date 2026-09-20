@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCustomer } from "@/lib/store";
+import { resolveCallSound } from "@/lib/call-audio";
 
 export const runtime = "nodejs";
 
@@ -18,5 +19,6 @@ export async function GET(_request: Request, { params }: Params) {
     address: customer.profile.address,
     phone: customer.profile.phone,
     agentName: customer.agentName,
+    callSound: resolveCallSound(customer.callSound),
   });
 }

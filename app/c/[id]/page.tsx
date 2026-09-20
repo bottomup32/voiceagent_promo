@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCustomer } from "@/lib/store";
+import { resolveCallSound } from "@/lib/call-audio";
 import { DemoCall } from "./demo-call";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export default async function CustomerDemoPage({ params }: Props) {
       address={customer.profile.address}
       phone={customer.profile.phone}
       agentName={customer.agentName}
+      callSound={resolveCallSound(customer.callSound)}
     />
   );
 }

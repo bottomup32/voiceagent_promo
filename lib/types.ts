@@ -77,6 +77,7 @@ export type Customer = {
   sources: ResearchSource[];
   prompts: CustomerPrompts;
   voice: string;
+  callSound?: CallSound;
   agentName: string;
   status: CustomerStatus;
   error?: string;
@@ -139,18 +140,39 @@ export type TrackEvent = {
   ipHash?: string;
 };
 
-export const LIVE_VOICES = [
-  "quartz",
-  "ripple",
-  "vesper",
-  "willow",
-  "stone",
-  "gleam",
-  "meridian",
-  "bossa",
-  "tempo",
-  "beacon",
-  "delta",
-  "cinder",
-  "marin",
-] as const;
+export type VoiceOption = {
+  id: string;
+  label: string;
+  accent: string;
+  presentation: "feminine" | "masculine";
+};
+
+/** The voices gpt-live-1 ships, with the accent each one speaks in. */
+export const LIVE_VOICE_OPTIONS: VoiceOption[] = [
+  { id: "gleam", label: "Gleam", accent: "North American", presentation: "feminine" },
+  { id: "meridian", label: "Meridian", accent: "North American", presentation: "masculine" },
+  { id: "delta", label: "Delta", accent: "Southern US", presentation: "feminine" },
+  { id: "cinder", label: "Cinder", accent: "Southern US", presentation: "masculine" },
+  { id: "quartz", label: "Quartz", accent: "Australian", presentation: "feminine" },
+  { id: "ripple", label: "Ripple", accent: "Australian", presentation: "masculine" },
+  { id: "vesper", label: "Vesper", accent: "British", presentation: "masculine" },
+  { id: "willow", label: "Willow", accent: "Irish", presentation: "feminine" },
+  { id: "stone", label: "Stone", accent: "Irish", presentation: "masculine" },
+  { id: "beacon", label: "Beacon", accent: "Filipino", presentation: "masculine" },
+  { id: "bossa", label: "Bossa", accent: "Brazilian Portuguese", presentation: "feminine" },
+  { id: "tempo", label: "Tempo", accent: "Brazilian Portuguese", presentation: "masculine" },
+];
+
+export const LIVE_VOICES = LIVE_VOICE_OPTIONS.map((voice) => voice.id);
+
+export const DEFAULT_VOICE = "gleam";
+
+/** How the call itself should sound, on top of what the model says. */
+export type CallSound = {
+  /** Narrow the agent audio to the telephone band. */
+  phoneLine: boolean;
+  /** Mix a quiet room tone under the call. */
+  roomTone: boolean;
+};
+
+export const DEFAULT_CALL_SOUND: CallSound = { phoneLine: true, roomTone: true };

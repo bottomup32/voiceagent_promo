@@ -33,7 +33,7 @@ export default function CustomerDetailPage({
   const [draft, setDraft] = useState<Customer | null>(null);
   const [saving, setSaving] = useState(false);
   const [researching, setResearching] = useState(false);
-  const call = useLiveCall(id);
+  const call = useLiveCall(id, draft?.callSound);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/admin/customers/${id}`, { cache: "no-store" });
@@ -74,6 +74,7 @@ export default function CustomerDetailPage({
         active: partial?.active ?? draft.active,
         agentName: partial?.agentName ?? draft.agentName,
         voice: partial?.voice ?? draft.voice,
+        callSound: partial?.callSound ?? draft.callSound,
         profile: partial?.profile ?? draft.profile,
         prompts: partial?.prompts ?? draft.prompts,
       };
@@ -224,6 +225,8 @@ export default function CustomerDetailPage({
                 <PromptEditor
                   agentName={draft.agentName}
                   voice={draft.voice}
+                  callSound={draft.callSound}
+                  onCallSoundChange={(callSound) => setDraft({ ...draft, callSound })}
                   prompts={draft.prompts}
                   regenerating={saving}
                   onAgentNameChange={(agentName) => setDraft({ ...draft, agentName })}

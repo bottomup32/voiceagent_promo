@@ -6,9 +6,11 @@ import { CallPanel } from "@/components/call/CallPanel";
 import { Transcript } from "@/components/call/Transcript";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLiveCall } from "@/hooks/useLiveCall";
+import type { CallSound } from "@/lib/types";
 
 type DemoCallProps = {
   customerId: string;
+  callSound: CallSound;
   name: string;
   category?: string;
   address?: string;
@@ -23,8 +25,9 @@ export function DemoCall({
   address,
   phone,
   agentName,
+  callSound,
 }: DemoCallProps) {
-  const call = useLiveCall(customerId);
+  const call = useLiveCall(customerId, callSound);
   const tracked = useRef(false);
 
   useEffect(() => {

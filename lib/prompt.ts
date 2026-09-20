@@ -41,7 +41,11 @@ export function buildLivePrompt(profile: BusinessProfile, agentName: string): st
     }${city(profile) ? ` in ${city(profile)}` : ""}.`,
     "",
     "How to speak:",
-    "- Warm, upbeat, natural phone manner. Sound like a real person, not a script.",
+    "- Speak American English in a standard US accent. Never drift into a British, Australian, or Irish accent.",
+    "- Bright and upbeat, with a smile in your voice. You are glad the phone rang.",
+    "- Brisk, natural pace. Sound like a real person at a busy front desk, not a script being read.",
+    "- Use contractions and everyday phrasing: \"we're\", \"sure thing\", \"you got it\", \"let me check on that\".",
+    "- Drop in short backchannels while the caller talks: \"mm-hm\", \"right\", \"got it\".",
     "- Keep each turn to one or two short sentences, then stop and listen.",
     "- Repeat names, times, and phone numbers back to confirm them.",
     "- If the caller interrupts, stop talking immediately and follow their lead.",
@@ -80,7 +84,7 @@ export function buildBackendPrompt(profile: BusinessProfile, agentName: string):
 }
 
 export function buildGreetingPrompt(profile: BusinessProfile, agentName: string): string {
-  return `Greet the caller now in English. Say: "Thank you for calling ${profile.name}, this is ${agentName}. How can I help you today?" Then pause and listen.`;
+  return `Greet the caller now, brightly and in a standard American accent. Say: "Thanks for calling ${profile.name}, this is ${agentName}! How can I help you today?" Then pause and listen.`;
 }
 
 export function buildPrompts(

@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CallAudio, resolveCallSound } from "@/lib/call-audio";
 import { Ringtone } from "@/lib/ringtone";
 import { appendFragment } from "@/lib/transcript";
-import type { CallState, TranscriptEntry } from "@/lib/types";
+import type { CallSound, CallState, TranscriptEntry } from "@/lib/types";
 
 type LiveEvent = {
   type: string;
@@ -49,7 +50,10 @@ export type UseLiveCall = {
   reset: () => void;
 };
 
-export function useLiveCall(customerId: string): UseLiveCall {
+export function useLiveCall(
+  customerId: string,
+  callSound?: Partial<CallSound> | null,
+): UseLiveCall {
   const [state, setState] = useState<CallState>("idle");
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -61,8 +65,9 @@ export function useLiveCall(customerId: string): UseLiveCall {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<CallAudio | null>(null);
   const ringtoneRef = useRef<Ringtone | null>(null);
+  const soundRef = useRef(resolveCallSound(callSound));
   const callIdRef = useRef<string | null>(null);
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const usageRef = useRef(0);
@@ -70,6 +75,12 @@ export function useLiveCall(customerId: string): UseLiveCall {
   const reportedRef = useRef(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Settings changed in the admin panel apply to the next call, since the
+  // audio graph is built when the call starts.
+  useEffect(() => {
+    soundRef.current = resolveCallSound(callSound);
+  }, [callSound]);
 
   const stopRingtone = useCallback(() => {
     ringtoneRef.current?.stop();
@@ -92,11 +103,8 @@ export function useLiveCall(customerId: string): UseLiveCall {
     pcRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-    if (audioRef.current) {
-      audioRef.current.srcObject = null;
-      audioRef.current.remove();
-      audioRef.current = null;
-    }
+    audioRef.current?.stop();
+    audioRef.current = null;
   }, [stopRingtone]);
 
   const report = useCallback(
@@ -227,12 +235,13 @@ export function useLiveCall(customerId: string): UseLiveCall {
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
 
-      const audio = document.createElement("audio");
-      audio.autoplay = true;
-      audioRef.current = audio;
+      const callAudio = new CallAudio();
+      audioRef.current = callAudio;
       pc.addEventListener("track", (event) => {
-        audio.srcObject = event.streams[0] ?? new MediaStream([event.track]);
-        void audio.play().catch(() => undefined);
+        const remote = event.streams[0] ?? new MediaStream([event.track]);
+        if (!callAudio.attach(remote, soundRef.current)) {
+          callAudio.attachPlain(remote);
+        }
       });
 
       for (const track of stream.getAudioTracks()) pc.addTrack(track, stream);

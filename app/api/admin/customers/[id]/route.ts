@@ -3,7 +3,7 @@ import { deleteCustomer, getCustomer, saveCustomer } from "@/lib/store";
 import { listCalls, readEvents } from "@/lib/calls";
 import { computeStats } from "@/lib/analytics";
 import { buildPrompts } from "@/lib/prompt";
-import type { BusinessProfile, Customer, CustomerPrompts } from "@/lib/types";
+import type { BusinessProfile, CallSound, Customer, CustomerPrompts } from "@/lib/types";
 import { LIVE_VOICES } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -43,6 +43,7 @@ export async function PATCH(request: Request, { params }: Params) {
     active: boolean;
     agentName: string;
     voice: string;
+    callSound: CallSound;
     profile: BusinessProfile;
     prompts: Partial<CustomerPrompts>;
     regeneratePrompts: boolean;
@@ -83,6 +84,7 @@ export async function PATCH(request: Request, { params }: Params) {
     active: body.active ?? customer.active,
     agentName: body.agentName?.trim() || customer.agentName,
     voice: body.voice ?? customer.voice,
+    callSound: body.callSound ?? customer.callSound,
     profile: body.profile ?? customer.profile,
     updatedAt: new Date().toISOString(),
   };

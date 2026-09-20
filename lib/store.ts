@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fallbackName, parseMapsUrl } from "./maps";
 import type { Customer } from "./types";
+import { DEFAULT_CALL_SOUND, DEFAULT_VOICE } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const CUSTOMERS_DIR = path.join(DATA_DIR, "customers");
@@ -15,12 +16,27 @@ async function ensureDir(dir: string) {
  * Maps link. Give them a business name so every reader can rely on one.
  */
 function normalize(customer: Customer): Customer {
-  if (customer.businessName?.trim()) return customer;
+  // "quartz" was the old default and speaks with an Australian accent. Records
+  // still carrying it never had a voice chosen for them, so move them to the
+  // North American default; a voice picked by hand is left alone.
+  const voice = customer.voice === "quartz" ? DEFAULT_VOICE : customer.voice;
+  const callSound = customer.callSound ?? DEFAULT_CALL_SOUND;
+
+  if (customer.businessName?.trim()) {
+    return voice === customer.voice && customer.callSound
+      ? customer
+      : { ...customer, voice, callSound };
+  }
   const fromProfile = customer.profile?.name?.trim();
   const fromLink = customer.mapsUrl
     ? fallbackName(parseMapsUrl(customer.mapsUrl), customer.mapsUrl)
     : "";
-  return { ...customer, businessName: fromProfile || fromLink || "Unnamed business" };
+  return {
+    ...customer,
+    voice,
+    callSound,
+    businessName: fromProfile || fromLink || "Unnamed business",
+  };
 }
 
 export async function listCustomers(): Promise<Customer[]> {
