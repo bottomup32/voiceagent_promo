@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityTab } from "@/components/admin/ActivityTab";
 import { CrmTab } from "@/components/admin/CrmTab";
 import { KnowledgeEditor } from "@/components/admin/KnowledgeEditor";
+import { SchedulePanel } from "@/components/public/SchedulePanel";
 import { PromptEditor } from "@/components/admin/PromptEditor";
 import { ResearchInputsPanel } from "@/components/admin/ResearchInputsPanel";
 import { SharePanel } from "@/components/admin/SharePanel";
@@ -243,6 +244,7 @@ export default function CustomerDetailPage({
                 <TabsTrigger value="crm">CRM</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
                 <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+                <TabsTrigger value="schedule">Schedule</TabsTrigger>
                 <TabsTrigger value="prompt">Prompt</TabsTrigger>
                 <TabsTrigger value="sources">Sources</TabsTrigger>
                 <TabsTrigger value="share">Share</TabsTrigger>
@@ -271,6 +273,15 @@ export default function CustomerDetailPage({
                   profile={draft.profile}
                   onChange={(profile) => setDraft({ ...draft, profile })}
                 />
+              </TabsContent>
+
+              {/*
+                The same panel the prospect sees, so the hours edited above can
+                be checked against the week they produce without leaving the
+                page. It reads the profile in the draft, not the saved record.
+              */}
+              <TabsContent value="schedule" className="pt-4">
+                <SchedulePanel profile={draft.profile} agentName={draft.agentName} />
               </TabsContent>
 
               <TabsContent value="prompt" className="pt-4">

@@ -35,6 +35,25 @@ Two views, one codebase:
   to us (`lib/links.ts` holds the URLs). It says plainly that it is a demo and
   not the business's phone line.
 
+  Three tabs: Knowledge, Schedule, Prompt. Sources is not one of them — the
+  research is the working-out, so it sits at the foot of the Knowledge it
+  produced as a reference (`SourcesPanel` in `compact` mode: the links, with the
+  briefing folded away). The admin keeps Sources as its own tab, because there
+  it is a console with the re-research inputs in it, not a citation list.
+
+  Schedule is a mock-up and says so three times over. `lib/schedule.ts` draws
+  the week from `profile.hours` — the Knowledge is the source of truth, so
+  editing the hours there moves the grid, unsaved edits included — and
+  `lib/integrations.ts` lists the calendars and booking tools a real booking
+  would land in. The demo takes no bookings and nothing is connected; clicking
+  anything raises a toast saying so. The week carries no dates and reads no
+  clock: the page is server-rendered and then hydrated, and `Date.now()` on
+  both sides renders two different weeks. Which slots are taken is fixed by
+  position for the same reason a diary that reshuffles while you look at it is
+  obviously fake. The brand glyphs are Simple Icons path data (CC0) copied in
+  rather than imported, so the bundle carries ten paths and not three thousand;
+  Microsoft withdrew theirs, so Outlook is drawn as the four squares.
+
   The knowledge panel renders as the form it is in the live product, because
   the pitch is that this is the business's own copy to correct — but every
   field is `readOnly` and touching one raises a toast asking us to make the

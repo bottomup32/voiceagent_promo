@@ -8,9 +8,7 @@ import { Transcript } from "@/components/call/Transcript";
 import { BusinessKnowledge } from "@/components/public/BusinessKnowledge";
 import { PromptView } from "@/components/public/PromptView";
 import { ContactButtons } from "@/components/public/ContactButtons";
-import { GoLive } from "@/components/public/GoLive";
-import { HowItWorks } from "@/components/public/HowItWorks";
-import { MissedCalls } from "@/components/public/MissedCalls";
+import { SchedulePanel } from "@/components/public/SchedulePanel";
 import { PhoneRinging } from "@/components/public/illustrations";
 import { ScenarioTeaser } from "@/components/public/ScenarioTeaser";
 import { SourcesPanel } from "@/components/research/SourcesPanel";
@@ -106,6 +104,18 @@ export function DemoCall({
   const askForChange = useCallback(() => {
     toast("Editing is off while this is a demo.", {
       description: `Tell us what to change and ${agentName} answers that way on the next call.`,
+      action: {
+        label: "Talk to us",
+        onClick: () => window.open(CONTACT_URL, "_blank", "noreferrer"),
+      },
+    });
+  }, [agentName]);
+
+  // The knowledge panel's message is about editing, which is not what someone
+  // clicking a calendar tile is asking for.
+  const askAboutSchedule = useCallback(() => {
+    toast("The demo does not take bookings.", {
+      description: `On your real line, ${agentName} writes the booking into the calendar you already use.`,
       action: {
         label: "Talk to us",
         onClick: () => window.open(CONTACT_URL, "_blank", "noreferrer"),
@@ -220,17 +230,16 @@ export function DemoCall({
         </CardContent>
       </Card>
 
-      <HowItWorks agentName={agentName} businessName={name} />
-
-      <MissedCalls businessName={name} />
-
+      {/*
+        Parked while the copy is reworked: HowItWorks, MissedCalls and GoLive
+        still live in components/public/ and go back in here when their
+        content is settled.
+      */}
       <ScenarioTeaser
         customerId={customerId}
         category={category}
         count={SCENARIO_COUNT}
       />
-
-      <GoLive agentName={agentName} businessName={name} mailto={mailto} />
 
       <Card className="rounded-xl border shadow-none">
         <CardHeader>
@@ -245,12 +254,33 @@ export function DemoCall({
           <Tabs defaultValue="knowledge">
             <TabsList variant="line" className="w-full justify-start">
               <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+              <TabsTrigger value="schedule">Schedule</TabsTrigger>
               <TabsTrigger value="prompt">Prompt</TabsTrigger>
-              <TabsTrigger value="sources">Sources</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="knowledge" className="pt-4">
+            {/*
+              Sources used to be a tab of its own, which gave the working-out
+              the same weight as the answer. It reads better as the reference
+              at the foot of the knowledge it produced.
+            */}
+            <TabsContent value="knowledge" className="space-y-8 pt-4">
               <BusinessKnowledge profile={profile} onEditAttempt={askForChange} />
+              <div className="border-t pt-6">
+                <SourcesPanel
+                  dossier={dossier}
+                  sources={sources}
+                  researchedAt={researchedAt}
+                  compact
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="schedule" className="pt-4">
+              <SchedulePanel
+                profile={profile}
+                agentName={agentName}
+                onLocked={askAboutSchedule}
+              />
             </TabsContent>
 
             <TabsContent value="prompt" className="pt-4">
@@ -258,14 +288,6 @@ export function DemoCall({
                 prompts={prompts}
                 voiceLabel={voiceLabel}
                 agentName={agentName}
-              />
-            </TabsContent>
-
-            <TabsContent value="sources" className="pt-4">
-              <SourcesPanel
-                dossier={dossier}
-                sources={sources}
-                researchedAt={researchedAt}
               />
             </TabsContent>
           </Tabs>
