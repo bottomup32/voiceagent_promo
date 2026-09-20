@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityTab } from "@/components/admin/ActivityTab";
 import { KnowledgeEditor } from "@/components/admin/KnowledgeEditor";
 import { PromptEditor } from "@/components/admin/PromptEditor";
+import { ResearchInputsPanel } from "@/components/admin/ResearchInputsPanel";
 import { SharePanel } from "@/components/admin/SharePanel";
 import { SourcesPanel } from "@/components/admin/SourcesPanel";
 import { PageHeader, StatCard, StatusBadge, statusKind } from "@/components/admin/shared";
@@ -62,6 +63,10 @@ export default function CustomerDetailPage({
     setSaving(true);
     try {
       const body = {
+        businessName: partial?.businessName ?? draft.businessName,
+        websiteUrl: partial?.websiteUrl ?? draft.websiteUrl ?? "",
+        mapsUrl: partial?.mapsUrl ?? draft.mapsUrl ?? "",
+        researchNotes: partial?.researchNotes ?? draft.researchNotes ?? "",
         label: partial?.label ?? draft.label ?? "",
         contactName: partial?.contactName ?? draft.contactName ?? "",
         contactEmail: partial?.contactEmail ?? draft.contactEmail ?? "",
@@ -97,7 +102,13 @@ export default function CustomerDetailPage({
       const response = await fetch(`/api/admin/customers/${id}/research`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ regeneratePrompts }),
+        body: JSON.stringify({
+          regeneratePrompts,
+          businessName: draft?.businessName,
+          websiteUrl: draft?.websiteUrl ?? "",
+          mapsUrl: draft?.mapsUrl ?? "",
+          researchNotes: draft?.researchNotes ?? "",
+        }),
       });
       const payload = (await response.json()) as { customer?: Customer; error?: string };
       if (!response.ok || !payload.customer) {
@@ -129,7 +140,7 @@ export default function CustomerDetailPage({
   return (
     <>
       <PageHeader
-        title={draft.profile.name || "Unnamed business"}
+        title={draft.profile.name || draft.businessName || "Unnamed business"}
         subtitle={draft.profile.address}
         actions={
           <div className="flex flex-wrap items-center gap-3">
@@ -243,7 +254,13 @@ export default function CustomerDetailPage({
                 />
               </TabsContent>
 
-              <TabsContent value="sources" className="pt-4">
+              <TabsContent value="sources" className="space-y-6 pt-4">
+                <ResearchInputsPanel
+                  customer={draft}
+                  onChange={(partial) => setDraft({ ...draft, ...partial })}
+                  onResearch={() => research(false)}
+                  researching={researching}
+                />
                 <SourcesPanel
                   dossier={draft.dossier}
                   sources={draft.sources}

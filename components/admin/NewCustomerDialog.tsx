@@ -15,13 +15,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export function NewCustomerDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
+    businessName: "",
+    websiteUrl: "",
     mapsUrl: "",
+    researchNotes: "",
     label: "",
     contactName: "",
     contactEmail: "",
@@ -46,7 +50,16 @@ export function NewCustomerDialog({ onCreated }: { onCreated: () => void }) {
       if (!response.ok) throw new Error(data.error || "Could not add the customer.");
       toast.success("Customer added. Research is running.");
       setOpen(false);
-      setForm({ mapsUrl: "", label: "", contactName: "", contactEmail: "", agentName: "Alex" });
+      setForm({
+        businessName: "",
+        websiteUrl: "",
+        mapsUrl: "",
+        researchNotes: "",
+        label: "",
+        contactName: "",
+        contactEmail: "",
+        agentName: "Alex",
+      });
       onCreated();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not add the customer.");
@@ -65,26 +78,63 @@ export function NewCustomerDialog({ onCreated }: { onCreated: () => void }) {
           </Button>
         }
       />
-      <DialogContent className="max-w-md rounded-2xl">
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto rounded-2xl">
         <DialogHeader>
           <DialogTitle className="ta-headline-1">New customer</DialogTitle>
           <DialogDescription className="ta-caption-1">
-            Paste the Google Maps link. Research runs in the background and builds the
-            receptionist prompt.
+            The business name is what gets researched. A website or a Google Maps link
+            just helps pick the right one.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="mapsUrl" className="ta-label-1">
-              Google Maps link
+            <Label htmlFor="businessName" className="ta-label-1">
+              Business name
             </Label>
             <Input
-              id="mapsUrl"
-              placeholder="https://maps.app.goo.gl/..."
-              value={form.mapsUrl}
-              onChange={(event) => update("mapsUrl", event.target.value)}
+              id="businessName"
+              placeholder="Joe's Pizza, Carmine St"
+              value={form.businessName}
+              onChange={(event) => update("businessName", event.target.value)}
               aria-invalid={Boolean(error)}
               required
+              autoFocus
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="websiteUrl" className="ta-label-1">
+                Website
+              </Label>
+              <Input
+                id="websiteUrl"
+                placeholder="https://example.com"
+                value={form.websiteUrl}
+                onChange={(event) => update("websiteUrl", event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mapsUrl" className="ta-label-1">
+                Google Maps link
+              </Label>
+              <Input
+                id="mapsUrl"
+                placeholder="https://maps.app.goo.gl/..."
+                value={form.mapsUrl}
+                onChange={(event) => update("mapsUrl", event.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="researchNotes" className="ta-label-1">
+              Notes for the research
+            </Label>
+            <Textarea
+              id="researchNotes"
+              className="min-h-20"
+              placeholder="Anything the web will not say: which branch, who answers the phone, what to emphasize."
+              value={form.researchNotes}
+              onChange={(event) => update("researchNotes", event.target.value)}
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -142,7 +192,7 @@ export function NewCustomerDialog({ onCreated }: { onCreated: () => void }) {
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={busy || !form.mapsUrl}>
+            <Button type="submit" disabled={busy || !form.businessName.trim()}>
               {busy ? "Adding" : "Add customer"}
             </Button>
           </DialogFooter>

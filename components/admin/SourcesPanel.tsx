@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ExternalLink, FileSearch } from "lucide-react";
 import { EmptyState } from "@/components/admin/shared";
 import type { ResearchSource } from "@/lib/types";
@@ -53,8 +54,8 @@ export function SourcesPanel({ dossier, sources, researchedAt }: Props) {
 
       <div className="space-y-2">
         <h3 className="ta-headline-2">Raw research</h3>
-        <div className="ta-body-2-reading prose-sm max-w-none space-y-3 [&_h1]:ta-headline-1 [&_h2]:ta-headline-2 [&_h3]:ta-label-1 [&_li]:ml-4 [&_li]:list-disc [&_strong]:font-semibold">
-          <ReactMarkdown>{dossier}</ReactMarkdown>
+        <div className="ta-body-2-reading max-w-none space-y-3 [&_h1]:ta-headline-1 [&_h2]:ta-headline-2 [&_h3]:ta-label-1 [&_li]:ml-4 [&_li]:list-disc [&_strong]:font-semibold [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{dossier}</ReactMarkdown>
         </div>
       </div>
     </div>

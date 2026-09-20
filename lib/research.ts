@@ -1,201 +1,220 @@
-import { createResponse } from "./openai";
-import { fallbackName, parseMapsUrl, resolveMapsUrl } from "./maps";
-import type { BusinessProfile, ResearchSource } from "./types";
+import { ClaudeCliError, extractJson, runClaude } from "./claude-cli";
+import { parseMapsUrl, resolveMapsUrl } from "./maps";
+import type { BusinessProfile, ResearchInputs, ResearchSource } from "./types";
 
-const PROFILE_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "name",
-    "category",
-    "address",
-    "phone",
-    "website",
-    "hours",
-    "services",
-    "highlights",
-    "policies",
-    "faqs",
-    "rating",
-    "reviewSummary",
-  ],
-  properties: {
-    name: { type: "string" },
-    category: { type: "string" },
-    address: { type: "string" },
-    phone: { type: ["string", "null"] },
-    website: { type: ["string", "null"] },
-    hours: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["day", "open", "close", "closed"],
-        properties: {
-          day: { type: "string" },
-          open: { type: "string" },
-          close: { type: "string" },
-          closed: { type: "boolean" },
-        },
-      },
-    },
-    services: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["name", "price", "description"],
-        properties: {
-          name: { type: "string" },
-          price: { type: ["string", "null"] },
-          description: { type: ["string", "null"] },
-        },
-      },
-    },
-    highlights: { type: "array", items: { type: "string" } },
-    policies: {
-      type: "object",
-      additionalProperties: false,
-      required: [
-        "reservations",
-        "walkIns",
-        "parking",
-        "payment",
-        "cancellation",
-        "other",
-      ],
-      properties: {
-        reservations: { type: ["string", "null"] },
-        walkIns: { type: ["string", "null"] },
-        parking: { type: ["string", "null"] },
-        payment: { type: ["string", "null"] },
-        cancellation: { type: ["string", "null"] },
-        other: { type: "array", items: { type: "string" } },
-      },
-    },
-    faqs: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["q", "a"],
-        properties: { q: { type: "string" }, a: { type: "string" } },
-      },
-    },
-    rating: { type: ["number", "null"] },
-    reviewSummary: { type: ["string", "null"] },
+const PROFILE_SHAPE = `{
+  "name": string,
+  "category": string,
+  "address": string,
+  "phone": string | null,
+  "website": string | null,
+  "hours": [{ "day": string, "open": string, "close": string, "closed": boolean }],
+  "services": [{ "name": string, "price": string | null, "description": string | null }],
+  "highlights": [string],
+  "policies": {
+    "reservations": string | null,
+    "walkIns": string | null,
+    "parking": string | null,
+    "payment": string | null,
+    "cancellation": string | null,
+    "other": [string]
   },
-} as const;
+  "faqs": [{ "q": string, "a": string }],
+  "rating": number | null,
+  "reviewSummary": string | null,
+  "sources": [{ "url": string, "title": string }]
+}`;
 
 export type ResearchResult = {
-  resolvedUrl: string;
+  /** The name actually researched, which can differ from the one passed in. */
+  businessName: string;
   profile: BusinessProfile;
   dossier: string;
   sources: ResearchSource[];
+  resolvedMapsUrl?: string;
+  costUsd?: number;
 };
 
 function researchModel(): string {
-  return process.env.RESEARCH_MODEL || "gpt-5.6-terra";
+  return process.env.RESEARCH_MODEL || "sonnet";
 }
 
-function stripNulls<T>(value: T): T {
+function stripEmpties<T>(value: T): T {
   if (Array.isArray(value)) {
-    return value.map((item) => stripNulls(item)) as unknown as T;
+    return value.map((item) => stripEmpties(item)) as unknown as T;
   }
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
       if (item === null || item === "" || item === "unknown") continue;
-      out[key] = stripNulls(item);
+      out[key] = stripEmpties(item);
     }
     return out as T;
   }
   return value;
 }
 
-/** Step 1: web search for everything a receptionist would need to answer. */
-export async function gatherDossier(
-  resolvedUrl: string,
-  nameHint: string,
-): Promise<{ dossier: string; sources: ResearchSource[] }> {
-  const result = await createResponse({
-    model: researchModel(),
-    tools: [{ type: "web_search", search_context_size: "medium" }],
-    instructions:
-      "You are a researcher preparing a briefing for a phone receptionist. Use web search. Report only what you can find in sources, cite them, and write 'unknown' where the answer is not available. Never invent hours, prices, or phone numbers.",
-    input: [
-      `Research this business so an AI phone receptionist can answer calls for it.`,
-      `Google Maps link: ${resolvedUrl}`,
-      nameHint ? `Likely name: ${nameHint}` : "",
-      "",
-      "Cover, as markdown sections:",
-      "1. Identity: exact business name, category, full address, phone number, website.",
-      "2. Opening hours for every day of the week.",
-      "3. Services or menu with prices where published, plus the items it is best known for.",
-      "4. Policies: reservations, walk-ins, parking, payment methods, cancellation.",
-      "5. The questions callers most often ask this kind of business, with the answer for this one.",
-      "6. Rating and the recurring themes in recent reviews.",
-      "",
-      "Mark anything you cannot verify as unknown.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  });
-
-  return { dossier: result.text, sources: result.citations };
+/** The links and notes the operator supplied, as prompt lines. */
+function referenceLines(inputs: ResearchInputs, resolvedMapsUrl?: string): string[] {
+  const lines: string[] = [];
+  if (inputs.websiteUrl) lines.push(`- Website (operator supplied): ${inputs.websiteUrl}`);
+  const maps = resolvedMapsUrl ?? inputs.mapsUrl;
+  if (maps) {
+    lines.push(`- Google Maps listing (one reference, not the whole story): ${maps}`);
+    const placeName = parseMapsUrl(maps).nameHint;
+    if (placeName) lines.push(`- Name on that listing: ${placeName}`);
+  }
+  if (inputs.notes) lines.push(`- Notes from the operator: ${inputs.notes}`);
+  return lines;
 }
 
-/** Step 2: turn the dossier into the structured profile the agent runs on. */
-export async function structureProfile(
-  dossier: string,
-  nameHint: string,
-): Promise<BusinessProfile> {
-  const result = await createResponse({
-    model: researchModel(),
-    instructions:
-      "Convert the research briefing into structured data. Copy facts only from the briefing. Use null or an empty array where the briefing says unknown. Do not add facts.",
-    input: [
-      nameHint ? `Business name hint: ${nameHint}` : "",
-      "Research briefing:",
-      dossier,
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-    text: {
-      format: {
-        type: "json_schema",
-        name: "business_profile",
-        strict: true,
-        schema: PROFILE_SCHEMA,
-      },
+/** A name that is really just a host, left over from a link-only record. */
+function looksLikeHost(name: string): boolean {
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(name.trim());
+}
+
+export function buildDossierPrompt(
+  inputs: ResearchInputs,
+  resolvedMapsUrl?: string,
+): string {
+  const references = referenceLines(inputs, resolvedMapsUrl);
+  return [
+    `Research the business "${inputs.businessName}" so an AI phone receptionist can answer its calls.`,
+    "",
+    references.length
+      ? ["References to start from:", ...references].join("\n")
+      : "No links were supplied. Search for the business by name.",
+    "",
+    "Search the web and read the pages that matter: the official site, the Google Maps or Yelp listing, booking pages, menus, and recent reviews.",
+    "",
+    "Write a markdown briefing with these sections:",
+    "1. Identity: exact business name, what it does, full address, phone number, website.",
+    "2. Hours for every day of the week, including holiday or seasonal notes.",
+    "3. Services or menu with prices where published, and what it is best known for.",
+    "4. Policies: reservations, walk-ins, parking, payment methods, cancellation, accessibility.",
+    "5. The questions callers most often ask a business like this, each with the answer for this one.",
+    "6. Rating and the recurring themes in recent reviews.",
+    "7. Sources: every URL you used, one per line.",
+    "",
+    "Reply with the briefing itself. No preamble, no summary of what you did, no offer to continue.",
+    "",
+    "Rules: report only what the sources say. Write `unknown` where you cannot verify something. Never invent hours, prices, or phone numbers. If several businesses share the name, use the supplied links to pick the right one and say which you chose.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function buildProfilePrompt(businessName: string, dossier: string): string {
+  return [
+    "Convert this research briefing into JSON.",
+    "",
+    `Business name: ${businessName}`,
+    "",
+    "Reply with ONLY a JSON object of this shape, no prose and no markdown fence:",
+    PROFILE_SHAPE,
+    "",
+    "Copy facts only from the briefing. Use null or an empty array where the briefing says unknown. Do not add facts. Times use 24-hour HH:MM. A closed day sets closed to true.",
+    "",
+    "Briefing:",
+    dossier,
+  ].join("\n");
+}
+
+type RawProfile = BusinessProfile & { sources?: ResearchSource[] };
+
+export async function researchBusiness(inputs: ResearchInputs): Promise<ResearchResult> {
+  const resolvedMapsUrl = inputs.mapsUrl
+    ? await resolveMapsUrl(inputs.mapsUrl)
+    : undefined;
+
+  let businessName = inputs.businessName.trim();
+  // A record that only ever had a link carries a hostname as its name. The
+  // resolved listing knows the real one.
+  if ((!businessName || looksLikeHost(businessName)) && resolvedMapsUrl) {
+    businessName = parseMapsUrl(resolvedMapsUrl).nameHint ?? businessName;
+  }
+  if (!businessName) {
+    throw new ClaudeCliError("A business name is required to research.");
+  }
+
+  const dossierRun = await runClaude(
+    buildDossierPrompt({ ...inputs, businessName }, resolvedMapsUrl),
+    {
+      tools: ["WebSearch", "WebFetch"],
+      model: researchModel(),
     },
+  );
+
+  if (!dossierRun.text) {
+    throw new ClaudeCliError("The research run came back empty.");
+  }
+
+  const profileRun = await runClaude(buildProfilePrompt(businessName, dossierRun.text), {
+    tools: [],
+    model: researchModel(),
   });
 
-  const parsed = JSON.parse(result.text) as BusinessProfile;
-  const profile = stripNulls(parsed);
-  return {
+  const parsed = extractJson(profileRun.text) as RawProfile;
+  const profile = stripEmpties(parsed);
+
+  const sources = dedupeSources([
+    ...(parsed.sources ?? []),
+    ...urlsInText(dossierRun.text),
+  ]);
+
+  const result: BusinessProfile = {
     ...profile,
-    name: profile.name || nameHint || "Unknown business",
+    name: profile.name || businessName,
+    category: profile.category || "",
+    address: profile.address || "",
     hours: profile.hours ?? [],
     services: profile.services ?? [],
     highlights: profile.highlights ?? [],
     policies: profile.policies ?? {},
     faqs: profile.faqs ?? [],
   };
+  delete (result as RawProfile).sources;
+
+  if (resolvedMapsUrl) {
+    const coords = parseMapsUrl(resolvedMapsUrl);
+    if (coords.lat !== undefined) result.lat = coords.lat;
+    if (coords.lng !== undefined) result.lng = coords.lng;
+  }
+  if (!result.website && inputs.websiteUrl) result.website = inputs.websiteUrl;
+
+  return {
+    businessName,
+    profile: result,
+    dossier: dossierRun.text,
+    sources,
+    resolvedMapsUrl,
+    costUsd: (dossierRun.costUsd ?? 0) + (profileRun.costUsd ?? 0),
+  };
 }
 
-export async function researchBusiness(mapsUrl: string): Promise<ResearchResult> {
-  const resolvedUrl = await resolveMapsUrl(mapsUrl);
-  const parsed = parseMapsUrl(resolvedUrl);
-  const nameHint = fallbackName(parsed, resolvedUrl);
+export function urlsInText(text: string): ResearchSource[] {
+  const matches = text.match(/https?:\/\/[^\s)<>\]"']+/g) ?? [];
+  return matches.map((url) => {
+    const clean = url.replace(/[.,;]+$/, "");
+    let title = clean;
+    try {
+      title = new URL(clean).hostname.replace(/^www\./, "");
+    } catch {
+      // Keep the raw URL as the title.
+    }
+    return { url: clean, title };
+  });
+}
 
-  const { dossier, sources } = await gatherDossier(resolvedUrl, parsed.nameHint ?? "");
-  const profile = await structureProfile(dossier, nameHint);
-
-  if (parsed.lat !== undefined) profile.lat = parsed.lat;
-  if (parsed.lng !== undefined) profile.lng = parsed.lng;
-
-  return { resolvedUrl, profile, dossier, sources };
+export function dedupeSources(sources: ResearchSource[]): ResearchSource[] {
+  const seen = new Set<string>();
+  const out: ResearchSource[] = [];
+  for (const source of sources) {
+    if (!source?.url || seen.has(source.url)) continue;
+    seen.add(source.url);
+    out.push({ url: source.url, title: source.title || source.url });
+  }
+  return out.slice(0, 25);
 }
 
 export function emptyProfile(name: string): BusinessProfile {

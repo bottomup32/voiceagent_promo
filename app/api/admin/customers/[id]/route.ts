@@ -32,6 +32,10 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   let body: Partial<{
+    businessName: string;
+    websiteUrl: string;
+    mapsUrl: string;
+    researchNotes: string;
     label: string;
     contactName: string;
     contactEmail: string;
@@ -55,6 +59,17 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const next: Customer = {
     ...customer,
+    businessName: body.businessName?.trim() || customer.businessName,
+    websiteUrl:
+      body.websiteUrl !== undefined
+        ? body.websiteUrl.trim() || undefined
+        : customer.websiteUrl,
+    mapsUrl:
+      body.mapsUrl !== undefined ? body.mapsUrl.trim() || undefined : customer.mapsUrl,
+    researchNotes:
+      body.researchNotes !== undefined
+        ? body.researchNotes.trim() || undefined
+        : customer.researchNotes,
     label: body.label !== undefined ? body.label.trim() || undefined : customer.label,
     contactName:
       body.contactName !== undefined

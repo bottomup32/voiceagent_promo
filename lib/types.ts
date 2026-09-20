@@ -41,6 +41,14 @@ export type BusinessProfile = {
 
 export type ResearchSource = { url: string; title: string };
 
+export type ResearchInputs = {
+  businessName: string;
+  websiteUrl?: string;
+  mapsUrl?: string;
+  /** Anything the operator knows that the web will not say. */
+  notes?: string;
+};
+
 export type CustomerPrompts = {
   live: string;
   backend: string;
@@ -57,8 +65,13 @@ export type Customer = {
   contactEmail?: string;
   notes?: string;
   active: boolean;
-  mapsUrl: string;
-  resolvedUrl: string;
+  /** What the research starts from. The name is required; the links are extra
+   *  context, not the subject. */
+  businessName: string;
+  websiteUrl?: string;
+  mapsUrl?: string;
+  resolvedMapsUrl?: string;
+  researchNotes?: string;
   profile: BusinessProfile;
   dossier: string;
   sources: ResearchSource[];
