@@ -13,7 +13,8 @@ import { DEFAULT_CALL_SOUND, DEFAULT_VOICE } from "@/lib/types";
 
 export const runtime = "nodejs";
 // Research runs after the response is sent, so the request itself is quick.
-// The function still has to stay alive while it works.
+// The function still has to stay alive while it works: 300s is the ceiling on
+// every Vercel plan with fluid compute, and a run takes over a minute.
 export const maxDuration = 300;
 
 export async function GET() {

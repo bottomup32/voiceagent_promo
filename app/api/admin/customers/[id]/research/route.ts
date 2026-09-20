@@ -5,7 +5,10 @@ import { researchBusiness } from "@/lib/research";
 import { buildPrompts } from "@/lib/prompt";
 
 export const runtime = "nodejs";
-// Vercel caps this at 300s on Pro and 60s on Hobby; research needs minutes.
+// Research is two model calls and runs over a minute. 300s is the ceiling on
+// every Vercel plan with fluid compute, Hobby included, and fluid compute is on
+// by default. A project with it turned off falls back to the old 60s and will
+// cut this short.
 export const maxDuration = 300;
 
 type Params = { params: Promise<{ id: string }> };

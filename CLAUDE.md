@@ -52,8 +52,10 @@ Do not mix these up. They are separate systems with separate credentials.
   already needs — or the **Anthropic API** when only `ANTHROPIC_API_KEY` is
   there. `resolveProvider()` decides; `RESEARCH_PROVIDER` overrides.
 
-  One run is two calls and takes over a minute, which is longer than a Vercel
-  Hobby function lives. `isResearchStalled()` is what makes that visible.
+  One run is two calls and takes over a minute. That fits inside the 300s
+  ceiling every Vercel plan gives a function with fluid compute, Hobby included;
+  a project with fluid compute turned off gets the old 60s and will cut research
+  short, which is what `isResearchStalled()` makes visible.
 
 ## The call
 
@@ -98,10 +100,10 @@ drops results pages, because the Sources panel is shown to the business.
 
 The **business name is the subject**. A website URL, a Google Maps link, and
 operator notes are references that disambiguate; a Maps link on its own still
-works because the listing's place name becomes the name. Research takes two to
-three minutes, so `POST /api/admin/customers` returns immediately with status
+works because the listing's place name becomes the name. Research takes a
+minute or two, so `POST /api/admin/customers` returns immediately with status
 `researching` and the list page polls; the re-research route runs inline with
-`maxDuration = 600`.
+`maxDuration = 300`.
 
 `lib/prompt.ts` turns a profile into the three prompts the call runs on (voice,
 backend, greeting). `resolvePrompts()` decides what a save keeps: the editor
