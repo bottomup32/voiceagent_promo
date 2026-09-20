@@ -1,5 +1,6 @@
 import type {
   CallLog,
+  CrmNote,
   CustomerStats,
   Engagement,
   Heat,
@@ -331,4 +332,61 @@ export function callerLines(calls: CallLog[], limit = 50): CallerLine[] {
   return lines
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, limit);
+}
+
+export type TimelineEntry = {
+  at: string;
+  kind: "note" | "view" | "call";
+  text: string;
+  /** Set on a call entry, so the row can open that call's transcript. */
+  callId?: string;
+};
+
+/**
+ * Everything that has happened with one prospect, newest first: what they did
+ * and what the operator wrote about it, in one column rather than two places.
+ */
+export function timeline(
+  notes: CrmNote[],
+  events: TrackEvent[],
+  calls: CallLog[],
+): TimelineEntry[] {
+  const entries: TimelineEntry[] = [];
+
+  for (const note of notes) {
+    entries.push({ at: note.at, kind: "note", text: note.text });
+  }
+
+  for (const event of events) {
+    entries.push({ at: event.at, kind: "view", text: "Opened the demo link" });
+  }
+
+  for (const call of calls) {
+    const turns = call.turns ?? call.transcript.length;
+    const length = formatDuration(call.durationSec);
+    entries.push({
+      at: call.startedAt,
+      kind: "call",
+      callId: call.id,
+      text: call.isTest
+        ? `Your test call · ${length} · ${turns} turns`
+        : `Called · ${length} · ${turns} turns`,
+    });
+  }
+
+  return entries.sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** Prospects the operator said they would come back to, soonest first. */
+export function dueFollowUps<T extends { followUpAt?: string }>(
+  customers: T[],
+  now = Date.now(),
+): T[] {
+  return customers
+    .filter((customer) => {
+      if (!customer.followUpAt) return false;
+      const due = new Date(customer.followUpAt).getTime();
+      return Number.isFinite(due) && due <= now;
+    })
+    .sort((a, b) => (a.followUpAt ?? "").localeCompare(b.followUpAt ?? ""));
 }

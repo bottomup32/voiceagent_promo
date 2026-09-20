@@ -4,9 +4,16 @@ import { assertWritableStore } from "@/lib/kv";
 import { deleteCustomer, getCustomer, saveCustomer } from "@/lib/store";
 import { listCalls, readEvents } from "@/lib/calls";
 import { computeStats } from "@/lib/analytics";
+import { listNotes } from "@/lib/crm";
 import { resolvePrompts } from "@/lib/prompt";
-import type { BusinessProfile, CallSound, Customer, CustomerPrompts } from "@/lib/types";
-import { LIVE_VOICES } from "@/lib/types";
+import type {
+  BusinessProfile,
+  CallSound,
+  Customer,
+  CustomerPrompts,
+  CustomerStage,
+} from "@/lib/types";
+import { CUSTOMER_STAGES, LIVE_VOICES } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -14,14 +21,18 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
-  let customer, calls, events;
+  let customer, calls, events, notes;
   try {
     customer = await getCustomer(id);
     if (!customer) {
       return NextResponse.json({ error: "Customer not found." }, { status: 404 });
     }
     // Only this customer's views; no need to read every other one's.
-    [calls, events] = await Promise.all([listCalls(id), readEvents(id)]);
+    [calls, events, notes] = await Promise.all([
+      listCalls(id),
+      readEvents(id),
+      listNotes(id),
+    ]);
   } catch (error) {
     return jsonError(error);
   }
@@ -29,7 +40,7 @@ export async function GET(_request: Request, { params }: Params) {
     calls,
     events.filter((event) => event.customerId === id),
   );
-  return NextResponse.json({ customer, stats, calls });
+  return NextResponse.json({ customer, stats, calls, events, notes });
 }
 
 export async function PATCH(request: Request, { params }: Params) {
@@ -56,6 +67,9 @@ export async function PATCH(request: Request, { params }: Params) {
     active: boolean;
     agentName: string;
     demoMinutes: number;
+    stage: CustomerStage;
+    lastContactedAt: string | null;
+    followUpAt: string | null;
     voice: string;
     callSound: CallSound;
     profile: BusinessProfile;
@@ -70,6 +84,9 @@ export async function PATCH(request: Request, { params }: Params) {
 
   if (body.voice && !LIVE_VOICES.includes(body.voice as (typeof LIVE_VOICES)[number])) {
     return NextResponse.json({ error: "Unknown voice." }, { status: 400 });
+  }
+  if (body.stage && !CUSTOMER_STAGES.includes(body.stage)) {
+    return NextResponse.json({ error: "Unknown stage." }, { status: 400 });
   }
 
   const next: Customer = {
@@ -102,6 +119,16 @@ export async function PATCH(request: Request, { params }: Params) {
         ? Math.max(0, Math.round(body.demoMinutes))
         : customer.demoMinutes,
     voice: body.voice ?? customer.voice,
+    stage: body.stage ?? customer.stage,
+    // null clears a date the operator set by mistake; undefined leaves it.
+    lastContactedAt:
+      body.lastContactedAt !== undefined
+        ? body.lastContactedAt || undefined
+        : customer.lastContactedAt,
+    followUpAt:
+      body.followUpAt !== undefined
+        ? body.followUpAt || undefined
+        : customer.followUpAt,
     callSound: body.callSound ?? customer.callSound,
     profile: body.profile ?? customer.profile,
     updatedAt: new Date().toISOString(),

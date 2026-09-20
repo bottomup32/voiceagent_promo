@@ -148,6 +148,14 @@ import `formatDuration` and `isResearchStalled` from it and pulling
 store rather than trusting that the variables look right — and is the first
 thing to read when a deploy misbehaves.
 
+The admin doubles as a small CRM. `Customer.stage` is the operator's own
+pipeline (`new`/`contacted`/`interested`/`won`/`lost`) and nothing writes it on
+their behalf; what the prospect *did* is reported separately as `Engagement`,
+because a stage that sometimes moves itself is a stage nobody trusts. Notes live
+in their own `notes:{customerId}` list (`lib/crm.ts`) rather than as a field, so
+writing one does not rewrite the customer and the history is kept. `timeline()`
+merges notes, page views and calls into one column.
+
 Page views live in `events:{customerId}` lists, not one global log, so a busy
 prospect cannot slow the dashboard down and `deleteCustomer` can take their
 views with them. The old global `events` list is still read and merged.

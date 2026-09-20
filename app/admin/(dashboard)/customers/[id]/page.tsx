@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityTab } from "@/components/admin/ActivityTab";
+import { CrmTab } from "@/components/admin/CrmTab";
 import { KnowledgeEditor } from "@/components/admin/KnowledgeEditor";
 import { PromptEditor } from "@/components/admin/PromptEditor";
 import { ResearchInputsPanel } from "@/components/admin/ResearchInputsPanel";
@@ -20,9 +21,21 @@ import { Transcript } from "@/components/call/Transcript";
 import { useLiveCall } from "@/hooks/useLiveCall";
 import { formatDuration, isResearchStalled } from "@/lib/analytics";
 import { readJson } from "@/lib/http";
-import type { CallLog, Customer, CustomerStats } from "@/lib/types";
+import type {
+  CallLog,
+  CrmNote,
+  Customer,
+  CustomerStats,
+  TrackEvent,
+} from "@/lib/types";
 
-type Payload = { customer: Customer; stats: CustomerStats; calls: CallLog[] };
+type Payload = {
+  customer: Customer;
+  stats: CustomerStats;
+  calls: CallLog[];
+  events: TrackEvent[];
+  notes: CrmNote[];
+};
 
 export default function CustomerDetailPage({
   params,
@@ -82,6 +95,9 @@ export default function CustomerDetailPage({
         active: partial?.active ?? draft.active,
         agentName: partial?.agentName ?? draft.agentName,
         demoMinutes: partial?.demoMinutes ?? draft.demoMinutes,
+        stage: partial?.stage ?? draft.stage,
+        lastContactedAt: partial?.lastContactedAt ?? draft.lastContactedAt ?? "",
+        followUpAt: partial?.followUpAt ?? draft.followUpAt ?? "",
         voice: partial?.voice ?? draft.voice,
         callSound: partial?.callSound ?? draft.callSound,
         profile: partial?.profile ?? draft.profile,
@@ -222,14 +238,29 @@ export default function CustomerDetailPage({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="rounded-xl border shadow-none lg:col-span-2">
           <CardContent className="p-4 md:p-6">
-            <Tabs defaultValue="activity">
+            <Tabs defaultValue="crm">
               <TabsList variant="line" className="w-full justify-start">
+                <TabsTrigger value="crm">CRM</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
                 <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
                 <TabsTrigger value="prompt">Prompt</TabsTrigger>
                 <TabsTrigger value="sources">Sources</TabsTrigger>
                 <TabsTrigger value="share">Share</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="crm" className="pt-4">
+                <CrmTab
+                  customer={draft}
+                  notes={data.notes ?? []}
+                  events={data.events ?? []}
+                  calls={calls}
+                  onChange={(partial) => {
+                    setDraft({ ...draft, ...partial });
+                    void save(partial);
+                  }}
+                  onNoteAdded={load}
+                />
+              </TabsContent>
 
               <TabsContent value="activity" className="pt-4">
                 <ActivityTab calls={calls} customerId={id} onChanged={load} />

@@ -1,5 +1,6 @@
 import { getStore } from "./kv";
 import { dropEvents } from "./calls";
+import { dropNotes } from "./crm";
 import { fallbackName, parseMapsUrl } from "./maps";
 import { PROMPT_VERSION, buildPrompts } from "./prompt";
 import type { Customer } from "./types";
@@ -14,6 +15,11 @@ const key = (id: string) => `customers:${id}`;
  * so every caller can rely on the current shape.
  */
 export function normalize(customer: Customer): Customer {
+  // Records written before the pipeline existed have not been worked yet.
+  if (!customer.stage) {
+    customer = { ...customer, stage: "new" };
+  }
+
   // Prompts nobody has touched follow the current wording, so a record saved
   // before the receptionist learned to open the call, or to answer in the
   // caller's language, picks both up without anyone reopening it. A prompt
@@ -84,6 +90,7 @@ export async function deleteCustomer(id: string): Promise<boolean> {
     await store.removeMember(`calls:${id}`, callId);
   }
   await dropEvents(id);
+  await dropNotes(id);
   await store.del(key(id));
   await store.removeMember(INDEX, id);
   return true;

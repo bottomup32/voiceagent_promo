@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDown,
+  CalendarClock,
   Copy,
   ExternalLink,
   Mail,
@@ -12,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { dueFollowUps } from "@/lib/analytics";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -131,12 +133,16 @@ export function CustomerTable({ customers, onChanged }: Props) {
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("heat");
+  const [dueOnly, setDueOnly] = useState(false);
+  const dueCount = useMemo(() => dueFollowUps(customers).length, [customers]);
   const [pendingDelete, setPendingDelete] = useState<CustomerWithStats | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const term = query.trim().toLowerCase();
+    const due = new Set(dueFollowUps(customers).map((customer) => customer.id));
     const filtered = customers.filter((customer) => {
+      if (dueOnly && !due.has(customer.id)) return false;
       if (status !== "all" && customer.status !== status) return false;
       if (!term) return true;
       return [
@@ -149,7 +155,7 @@ export function CustomerTable({ customers, onChanged }: Props) {
         .some((value) => value!.toLowerCase().includes(term));
     });
     return [...filtered].sort(SORTS[sort]);
-  }, [customers, query, sort, status]);
+  }, [customers, dueOnly, query, sort, status]);
 
   async function toggleActive(customer: CustomerWithStats, active: boolean) {
     setBusyId(customer.id);
@@ -209,12 +215,21 @@ export function CustomerTable({ customers, onChanged }: Props) {
             <SelectItem value="error">Error</SelectItem>
           </SelectContent>
         </Select>
-        {query || status !== "all" ? (
+        <Button
+          variant={dueOnly ? "default" : "outline"}
+          onClick={() => setDueOnly((current) => !current)}
+        >
+          <CalendarClock className="size-4" />
+          Follow-ups due
+          {dueCount ? ` (${dueCount})` : ""}
+        </Button>
+        {query || status !== "all" || dueOnly ? (
           <Button
             variant="ghost"
             onClick={() => {
               setQuery("");
               setStatus("all");
+              setDueOnly(false);
             }}
           >
             Reset

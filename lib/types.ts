@@ -63,6 +63,28 @@ export const DEFAULT_DEMO_MINUTES = 10;
 
 export type CustomerStatus = "researching" | "ready" | "error";
 
+/**
+ * Where the deal stands. Set by the operator and only by the operator — what
+ * the prospect did with the demo is reported separately as `Engagement`, and a
+ * stage that sometimes moves itself is a stage nobody trusts.
+ */
+export const CUSTOMER_STAGES = [
+  "new",
+  "contacted",
+  "interested",
+  "won",
+  "lost",
+] as const;
+
+export type CustomerStage = (typeof CUSTOMER_STAGES)[number];
+
+/** One line the operator wrote about a prospect. Append-only. */
+export type CrmNote = {
+  id: string;
+  at: string;
+  text: string;
+};
+
 export type Customer = {
   id: string;
   label?: string;
@@ -86,6 +108,9 @@ export type Customer = {
   agentName: string;
   /** Demo minutes for this prospect; absent means DEFAULT_DEMO_MINUTES. */
   demoMinutes?: number;
+  stage?: CustomerStage;
+  lastContactedAt?: string;
+  followUpAt?: string;
   status: CustomerStatus;
   error?: string;
   createdAt: string;
