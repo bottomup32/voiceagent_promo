@@ -28,6 +28,29 @@ export function isAbandoned(call: CallLog, now = Date.now()): boolean {
   );
 }
 
+/**
+ * The slice of history a reporting period covers. The KPI cards used to ignore
+ * the period select entirely and report all time, so changing it moved the
+ * chart and nothing else.
+ */
+export function withinDays<T>(
+  items: T[],
+  days: number,
+  at: (item: T) => string,
+  now = Date.now(),
+): T[] {
+  const from = now - days * 86_400_000;
+  return items.filter((item) => {
+    const time = new Date(at(item)).getTime();
+    return Number.isFinite(time) && time >= from;
+  });
+}
+
+/** Calls the operator made from the admin test panel. */
+export function testCalls(calls: CallLog[]): CallLog[] {
+  return calls.filter((call) => call.isTest);
+}
+
 /** Calls that count towards customer-facing numbers: real, not in flight. */
 export function countableCalls(calls: CallLog[], now = Date.now()): CallLog[] {
   return calls.filter(

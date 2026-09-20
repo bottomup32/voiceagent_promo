@@ -5,6 +5,8 @@ import {
   computeStats,
   countableCalls,
   demoAllowance,
+  testCalls,
+  withinDays,
   isResearchStalled,
   formatDuration,
   statsByCustomer,
@@ -207,5 +209,66 @@ describe("demoAllowance", () => {
   it("honours a longer allowance granted to one prospect", () => {
     expect(demoAllowance([call(600)], 30).exhausted).toBe(false);
     expect(demoAllowance([call(600)], 30).remainingSec).toBe(1200);
+  });
+});
+
+describe("withinDays", () => {
+  const now = Date.parse("2026-09-20T12:00:00.000Z");
+  const at = (item: { at: string }) => item.at;
+
+  it("keeps what happened inside the period", () => {
+    const kept = withinDays(
+      [{ at: "2026-09-20T09:00:00.000Z" }, { at: "2026-09-18T09:00:00.000Z" }],
+      7,
+      at,
+      now,
+    );
+    expect(kept).toHaveLength(2);
+  });
+
+  it("drops what fell out of it", () => {
+    const kept = withinDays(
+      [{ at: "2026-09-19T09:00:00.000Z" }, { at: "2026-08-01T09:00:00.000Z" }],
+      7,
+      at,
+      now,
+    );
+    expect(kept.map((item) => item.at)).toEqual(["2026-09-19T09:00:00.000Z"]);
+  });
+
+  it("drops an unreadable timestamp rather than counting it as now", () => {
+    expect(withinDays([{ at: "not a date" }], 30, at, now)).toEqual([]);
+  });
+});
+
+describe("test calls and the numbers they are missing from", () => {
+  const call = (id: string, isTest: boolean): CallLog => ({
+    id,
+    customerId: "abc",
+    liveSessionId: "sess",
+    startedAt: "2026-09-20T10:00:00.000Z",
+    status: "completed",
+    durationSec: 120,
+    transcript: [],
+    isTest,
+  });
+
+  it("counts the operator's own calls separately", () => {
+    expect(testCalls([call("a", true), call("b", false), call("c", true)])).toHaveLength(2);
+  });
+
+  it("is exactly what countableCalls leaves out", () => {
+    const calls = [call("a", true), call("b", false)];
+    expect(countableCalls(calls)).toHaveLength(1);
+    expect(testCalls(calls)).toHaveLength(1);
+  });
+
+  // This is the bug that started it: a call that really happened, tagged as a
+  // test because the operator's browser carried an admin cookie, contributing
+  // nothing to any number on the dashboard.
+  it("reports zero real calls when every call was tagged a test", () => {
+    const calls = [call("a", true), call("b", true)];
+    expect(countableCalls(calls)).toHaveLength(0);
+    expect(testCalls(calls)).toHaveLength(2);
   });
 });

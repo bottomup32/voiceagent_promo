@@ -8,13 +8,19 @@ import {
   countableCalls,
   emptyStats,
   statsByCustomer,
+  testCalls,
+  withinDays,
 } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const days = Number(new URL(request.url).searchParams.get("days") ?? 30);
+  const params = new URL(request.url).searchParams;
+  const days = Number(params.get("days") ?? 30);
   const window = [7, 30, 90].includes(days) ? days : 30;
+  // The operator's own test calls are hidden by default, because they would
+  // flatter every number. This is how they look at them anyway.
+  const includeTests = params.get("includeTests") === "1";
 
   let customers, calls, events;
   try {
@@ -27,7 +33,15 @@ export async function GET(request: Request) {
     return jsonError(error);
   }
 
-  const stats = statsByCustomer(calls, events);
+  // Everything but the customer count is scoped to the period on screen.
+  const windowRaw = withinDays(calls, window, (call) => call.startedAt);
+  const counted = includeTests
+    ? calls.map((call) => ({ ...call, isTest: false }))
+    : calls;
+  const windowCalls = withinDays(counted, window, (call) => call.startedAt);
+  const windowEvents = withinDays(events, window, (event) => event.at);
+
+  const stats = statsByCustomer(windowCalls, windowEvents);
   const kpis = computeKpis(
     customers.map((customer) => customer.id),
     stats,
@@ -62,9 +76,12 @@ export async function GET(request: Request) {
   return NextResponse.json({
     kpis,
     window,
-    callsPerDay: callsPerDay(calls, window),
+    callsPerDay: callsPerDay(counted, window),
     topCustomers,
     recentCalls,
     realCallCount: countableCalls(calls).length,
+    // What is being left out, so a zero on the dashboard can explain itself.
+    testCallCount: testCalls(windowRaw).length,
+    includeTests,
   });
 }

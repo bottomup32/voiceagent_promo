@@ -35,7 +35,8 @@ export default function CustomerDetailPage({
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [researching, setResearching] = useState(false);
-  const call = useLiveCall(id, draft?.callSound);
+  // Calls from this panel are the operator's own and stay out of the numbers.
+  const call = useLiveCall(id, draft?.callSound, { isTest: true });
 
   const load = useCallback(async () => {
     try {
@@ -231,7 +232,7 @@ export default function CustomerDetailPage({
               </TabsList>
 
               <TabsContent value="activity" className="pt-4">
-                <ActivityTab calls={calls} />
+                <ActivityTab calls={calls} customerId={id} onChanged={load} />
               </TabsContent>
 
               <TabsContent value="knowledge" className="pt-4">

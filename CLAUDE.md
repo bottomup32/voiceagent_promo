@@ -149,6 +149,13 @@ store rather than trusting that the variables look right — and is the first
 thing to read when a deploy misbehaves.
 
 Admin test calls are tagged `isTest` and excluded from customer-facing numbers.
+A call is a test because the admin test panel said so in the `/api/session`
+body, not because the request carried an admin cookie — the cookie is
+`path: "/"`, so inferring it marked every call the operator made through a
+prospect's own link as a test and emptied the dashboard. The cookie is still
+checked as the authorisation half, since test calls skip `demoAllowance`.
+`PATCH /api/admin/customers/[id]/calls` reclassifies one, and the Overview says
+how many it is leaving out rather than showing a bare zero.
 
 ## UI conventions
 

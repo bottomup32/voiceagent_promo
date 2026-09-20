@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -44,6 +45,8 @@ type Analytics = {
   callsPerDay: DayBucket[];
   topCustomers: { id: string; name: string; minutes: number; calls: number }[];
   recentCalls: RecentCall[];
+  testCallCount: number;
+  includeTests: boolean;
 };
 
 const PERIODS: Record<string, string> = {
@@ -61,21 +64,23 @@ const STATUS_KIND = {
 
 export default function OverviewPage() {
   const [days, setDays] = useState("30");
+  const [includeTests, setIncludeTests] = useState(false);
   const [data, setData] = useState<Analytics | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch(`/api/admin/analytics?days=${days}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(
+        `/api/admin/analytics?days=${days}${includeTests ? "&includeTests=1" : ""}`,
+        { cache: "no-store" },
+      );
       setData(await readJson<Analytics>(response));
       setError(null);
     } catch (caught) {
       // Without this the page sits on its skeleton forever and says nothing.
       setError(caught instanceof Error ? caught.message : "Could not load analytics.");
     }
-  }, [days]);
+  }, [days, includeTests]);
 
   useEffect(() => {
     // Fetching on mount: the state lands in an async callback, which is what
@@ -90,7 +95,16 @@ export default function OverviewPage() {
         title="Overview"
         subtitle="How target customers are testing their demo."
         actions={
-          <Select value={days} onValueChange={(value) => setDays(value ?? "30")}>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="ta-label-1 flex items-center gap-2">
+              <Switch
+                checked={includeTests}
+                onCheckedChange={setIncludeTests}
+                aria-label="Include my test calls in the numbers"
+              />
+              Include my test calls
+            </label>
+            <Select value={days} onValueChange={(value) => setDays(value ?? "30")}>
             <SelectTrigger className="w-40" aria-label="Select the reporting period">
               <SelectValue>{PERIODS[days]}</SelectValue>
             </SelectTrigger>
@@ -101,7 +115,8 @@ export default function OverviewPage() {
                 </SelectItem>
               ))}
             </SelectContent>
-          </Select>
+            </Select>
+          </div>
         }
       />
 
@@ -127,17 +142,21 @@ export default function OverviewPage() {
           <StatCard
             title="Tested"
             value={String(data.kpis.testedCustomers)}
-            caption="Customers who called at least once"
+            caption={`Called at least once, last ${data.window} days`}
           />
           <StatCard
             title="Calls"
             value={String(data.kpis.totalCalls)}
-            caption={`Average ${formatDuration(data.kpis.avgCallSec)} per call`}
+            caption={
+              data.testCallCount && !data.includeTests
+                ? `${data.testCallCount} of your test calls left out`
+                : `Average ${formatDuration(data.kpis.avgCallSec)} per call`
+            }
           />
           <StatCard
             title="Minutes"
             value={String(data.kpis.totalMinutes)}
-            caption="Voice minutes used by customers"
+            caption={`Customer voice minutes, last ${data.window} days`}
           />
         </div>
       )}
@@ -145,7 +164,9 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ChartCard
           title="Calls per day"
-          description={`Last ${data?.window ?? 30} days, test calls excluded`}
+          description={`Last ${data?.window ?? 30} days${
+            data?.includeTests ? ", test calls included" : ", test calls excluded"
+          }`}
           className="lg:col-span-2"
         >
           <div className="h-[280px]">

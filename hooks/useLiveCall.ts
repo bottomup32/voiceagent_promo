@@ -65,7 +65,14 @@ export type UseLiveCall = {
 export function useLiveCall(
   customerId: string,
   callSound?: Partial<CallSound> | null,
+  /**
+   * Set by the admin test panel. A call is a test because the operator made it
+   * from inside the admin area, not because their browser happens to be
+   * carrying an admin cookie while they look at the public page.
+   */
+  options?: { isTest?: boolean },
 ): UseLiveCall {
+  const isTest = options?.isTest === true;
   const [state, setState] = useState<CallState>("idle");
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -293,7 +300,11 @@ export function useLiveCall(
       const response = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerId, sdp: pc.localDescription?.sdp }),
+        body: JSON.stringify({
+          customerId,
+          sdp: pc.localDescription?.sdp,
+          isTest,
+        }),
       });
 
       // readJson because a crashed route answers with an empty body, and
@@ -336,7 +347,7 @@ export function useLiveCall(
         setState("error");
       }
     }
-  }, [customerId, finish, handleEvent, state, stopRingtone, teardown]);
+  }, [customerId, finish, handleEvent, isTest, state, stopRingtone, teardown]);
 
   const hangup = useCallback(() => {
     if (state !== "connected" && state !== "ringing") return;

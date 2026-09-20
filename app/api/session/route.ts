@@ -30,7 +30,7 @@ function clientIp(request: Request): string {
 }
 
 export async function POST(request: Request) {
-  let body: { customerId?: string; sdp?: string };
+  let body: { customerId?: string; sdp?: string; isTest?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -69,7 +69,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const isTest = await isAdminRequest();
+  // A test call is one the operator made from the admin test panel, which says
+  // so in the body. Inferring it from the admin cookie marked every call the
+  // operator made through a prospect's own link as a test, and those calls then
+  // vanished from every number on the dashboard. The cookie check stays as the
+  // authorisation half: test calls skip the demo allowance, so a prospect must
+  // not be able to claim one.
+  const isTest = body.isTest === true && (await isAdminRequest());
 
   // The demo is a fixed amount of time per prospect. Running out is the nudge:
   // the page then offers the contact form instead of the call button. An admin
