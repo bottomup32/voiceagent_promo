@@ -1,4 +1,5 @@
-import { ClaudeCliError, extractJson, runClaude } from "./claude-cli";
+import { ClaudeCliError, extractJson } from "./claude-cli";
+import { runResearchPrompt } from "./research-runner";
 import { parseMapsUrl, resolveMapsUrl } from "./maps";
 import type { BusinessProfile, ResearchInputs, ResearchSource } from "./types";
 
@@ -34,10 +35,6 @@ export type ResearchResult = {
   resolvedMapsUrl?: string;
   costUsd?: number;
 };
-
-function researchModel(): string {
-  return process.env.RESEARCH_MODEL || "sonnet";
-}
 
 function stripEmpties<T>(value: T): T {
   if (Array.isArray(value)) {
@@ -137,22 +134,19 @@ export async function researchBusiness(inputs: ResearchInputs): Promise<Research
     throw new ClaudeCliError("A business name is required to research.");
   }
 
-  const dossierRun = await runClaude(
+  const dossierRun = await runResearchPrompt(
     buildDossierPrompt({ ...inputs, businessName }, resolvedMapsUrl),
-    {
-      tools: ["WebSearch", "WebFetch"],
-      model: researchModel(),
-    },
+    { withSearch: true },
   );
 
   if (!dossierRun.text) {
     throw new ClaudeCliError("The research run came back empty.");
   }
 
-  const profileRun = await runClaude(buildProfilePrompt(businessName, dossierRun.text), {
-    tools: [],
-    model: researchModel(),
-  });
+  const profileRun = await runResearchPrompt(
+    buildProfilePrompt(businessName, dossierRun.text),
+    { withSearch: false },
+  );
 
   const parsed = extractJson(profileRun.text) as RawProfile;
   const profile = stripEmpties(parsed);

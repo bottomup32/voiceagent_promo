@@ -1,19 +1,15 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import { getStore } from "./kv";
 import { fallbackName, parseMapsUrl } from "./maps";
 import type { Customer } from "./types";
 import { DEFAULT_CALL_SOUND, DEFAULT_VOICE } from "./types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const CUSTOMERS_DIR = path.join(DATA_DIR, "customers");
-
-async function ensureDir(dir: string) {
-  await fs.mkdir(dir, { recursive: true });
-}
+const INDEX = "customers";
+const key = (id: string) => `customers:${id}`;
 
 /**
  * Records written before the research moved to a name-first flow only carry a
- * Maps link. Give them a business name so every reader can rely on one.
+ * Maps link, and older ones carry the retired default voice. Fix both on read
+ * so every caller can rely on the current shape.
  */
 function normalize(customer: Customer): Customer {
   // "quartz" was the old default and speaks with an Australian accent. Records
@@ -27,6 +23,7 @@ function normalize(customer: Customer): Customer {
       ? customer
       : { ...customer, voice, callSound };
   }
+
   const fromProfile = customer.profile?.name?.trim();
   const fromLink = customer.mapsUrl
     ? fallbackName(parseMapsUrl(customer.mapsUrl), customer.mapsUrl)
@@ -40,17 +37,12 @@ function normalize(customer: Customer): Customer {
 }
 
 export async function listCustomers(): Promise<Customer[]> {
-  await ensureDir(CUSTOMERS_DIR);
-  const files = await fs.readdir(CUSTOMERS_DIR);
+  const store = getStore();
+  const ids = await store.members(INDEX);
   const customers: Customer[] = [];
-  for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-    try {
-      const raw = await fs.readFile(path.join(CUSTOMERS_DIR, file), "utf8");
-      customers.push(normalize(JSON.parse(raw) as Customer));
-    } catch {
-      // Skip unreadable or half-written files rather than failing the list.
-    }
+  for (const id of ids) {
+    const customer = await store.getJson<Customer>(key(id));
+    if (customer) customers.push(normalize(customer));
   }
   customers.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return customers;
@@ -58,29 +50,27 @@ export async function listCustomers(): Promise<Customer[]> {
 
 export async function getCustomer(id: string): Promise<Customer | null> {
   if (!/^[A-Za-z0-9_-]{6,32}$/.test(id)) return null;
-  try {
-    const raw = await fs.readFile(path.join(CUSTOMERS_DIR, `${id}.json`), "utf8");
-    return normalize(JSON.parse(raw) as Customer);
-  } catch {
-    return null;
-  }
+  const customer = await getStore().getJson<Customer>(key(id));
+  return customer ? normalize(customer) : null;
 }
 
 export async function saveCustomer(customer: Customer): Promise<Customer> {
-  await ensureDir(CUSTOMERS_DIR);
-  const target = path.join(CUSTOMERS_DIR, `${customer.id}.json`);
-  const tmp = `${target}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(customer, null, 2), "utf8");
-  await fs.rename(tmp, target);
+  const store = getStore();
+  await store.setJson(key(customer.id), customer);
+  await store.addMember(INDEX, customer.id);
   return customer;
 }
 
 export async function deleteCustomer(id: string): Promise<boolean> {
+  const store = getStore();
   const customer = await getCustomer(id);
   if (!customer) return false;
-  await fs.rm(path.join(CUSTOMERS_DIR, `${id}.json`), { force: true });
-  await fs.rm(path.join(DATA_DIR, "calls", id), { recursive: true, force: true });
+
+  for (const callId of await store.members(`calls:${id}`)) {
+    await store.del(`calls:${id}:${callId}`);
+    await store.removeMember(`calls:${id}`, callId);
+  }
+  await store.del(key(id));
+  await store.removeMember(INDEX, id);
   return true;
 }
-
-export { DATA_DIR };

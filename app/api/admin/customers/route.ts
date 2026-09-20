@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { nanoid } from "nanoid";
 import { getCustomer, listCustomers, saveCustomer } from "@/lib/store";
 import { listAllCalls, readEvents } from "@/lib/calls";
@@ -10,6 +10,9 @@ import type { Customer, CustomerWithStats, ResearchInputs } from "@/lib/types";
 import { DEFAULT_CALL_SOUND, DEFAULT_VOICE } from "@/lib/types";
 
 export const runtime = "nodejs";
+// Research runs after the response is sent, so the request itself is quick.
+// The function still has to stay alive while it works.
+export const maxDuration = 300;
 
 export async function GET() {
   const [customers, calls, events] = await Promise.all([
@@ -95,11 +98,15 @@ export async function POST(request: Request) {
   await saveCustomer(customer);
 
   // Research runs after the response so the table can show "Researching".
-  void runResearch(customer.id, {
-    businessName,
-    websiteUrl,
-    mapsUrl,
-    notes: customer.researchNotes,
+  // `after` is what keeps a serverless function alive for that work; locally
+  // it behaves like a plain background call.
+  after(async () => {
+    await runResearch(customer.id, {
+      businessName,
+      websiteUrl,
+      mapsUrl,
+      notes: customer.researchNotes,
+    });
   });
 
   return NextResponse.json({ customer }, { status: 201 });

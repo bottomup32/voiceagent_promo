@@ -4,7 +4,8 @@ import { researchBusiness } from "@/lib/research";
 import { buildPrompts } from "@/lib/prompt";
 
 export const runtime = "nodejs";
-export const maxDuration = 600;
+// Vercel caps this at 300s on Pro and 60s on Hobby; research needs minutes.
+export const maxDuration = 300;
 
 type Params = { params: Promise<{ id: string }> };
 

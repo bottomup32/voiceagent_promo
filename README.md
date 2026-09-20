@@ -14,9 +14,11 @@ Next.js App Router, Tailwind CSS v4, shadcn/ui with the TecAce theme, Chart.js.
 Two different providers do two different jobs:
 
 - **Voice** runs on OpenAI **GPT-Live-1** over WebRTC, with reasoning delegated to a backend model through Responses delegation. Needs `OPENAI_API_KEY`.
-- **Research** runs through the locally installed **Claude Code CLI** in headless mode, so it bills against your Claude subscription rather than an API key. Sign in once with `claude` in a terminal and the app spawns it per research run.
+- **Research** runs through the locally installed **Claude Code CLI** in headless mode, so it bills against your Claude subscription rather than an API key. Sign in once with `claude` in a terminal and the app spawns it per research run. Where no CLI exists, it falls back to the Anthropic API with `ANTHROPIC_API_KEY`.
 
-Customers, call logs, and page views are JSON files under `data/`.
+Customers, call logs, and page views go to JSON files under `data/` by default, or to a Redis-compatible REST store when `KV_REST_API_URL` and `KV_REST_API_TOKEN` are set.
+
+`GET /api/admin/health` reports which backend and which research provider a deployment actually has, and returns 503 when something is missing.
 
 ## Setup
 
@@ -69,9 +71,20 @@ npm run lint
 npm run build
 ```
 
+## Deploying to Vercel
+
+The filesystem is read-only there and no Claude CLI exists, so two environment variables do more than the rest put together.
+
+1. **Storage.** Add a Redis-compatible store (Upstash through the Vercel marketplace works) and make sure `KV_REST_API_URL` and `KV_REST_API_TOKEN` reach the project. Without them the app writes to a disk that disappears between requests.
+2. **Research.** Set `ANTHROPIC_API_KEY`. On Vercel the research provider defaults to the API, since there is no CLI to spawn. Locally it stays on the CLI and your subscription.
+3. **The rest.** `OPENAI_API_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, and `NEXT_PUBLIC_BASE_URL` set to the deployment's own origin.
+
+Then open `/api/admin/health` while signed in; it names anything still missing.
+
+One limit worth knowing before you promise a demo: a research run takes two to three minutes, and Vercel caps a function at 60 seconds on Hobby and 300 on Pro. On Hobby, add customers from a local copy of the app pointed at the same store, and let the deployment serve the demo.
+
 ## Notes and limits
 
-- Data lives in files under `data/`, so a serverless host with a read-only filesystem will not work as is. Run it on a host with a disk, or swap `lib/store.ts` and `lib/calls.ts` for a database.
 - Voice minutes are billed per second by OpenAI, and the delegated model is billed separately.
-- Research spawns the Claude CLI as a child process, so the app has to run somewhere that CLI is installed and signed in. It uses your Claude subscription, not an API key.
 - A research run takes two to three minutes and can be rerun at any time from the **Sources** tab.
+- The CLI research path costs nothing per run beyond your Claude subscription; the API path bills per token.
