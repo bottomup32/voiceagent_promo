@@ -148,6 +148,18 @@ import `formatDuration` and `isResearchStalled` from it and pulling
 store rather than trusting that the variables look right — and is the first
 thing to read when a deploy misbehaves.
 
+Page views live in `events:{customerId}` lists, not one global log, so a busy
+prospect cannot slow the dashboard down and `deleteCustomer` can take their
+views with them. The old global `events` list is still read and merged.
+
+`middleware.ts` hands a browser a random `va_vid` cookie on its first visit to a
+demo link, which is what lets the admin say whether three people tried it or one
+person tried it three times. It replaced the stored IP hash, which was a
+truncated unsalted SHA-256 — reversible by brute force over the IPv4 space,
+about the office rather than the person, and read by nothing. The IP is still
+used for the per-IP rate limit on `/api/session`; it is simply never written
+down.
+
 Admin test calls are tagged `isTest` and excluded from customer-facing numbers.
 A call is a test because the admin test panel said so in the `/api/session`
 body, not because the request carried an admin cookie — the cookie is

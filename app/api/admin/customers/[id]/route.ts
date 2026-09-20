@@ -20,7 +20,8 @@ export async function GET(_request: Request, { params }: Params) {
     if (!customer) {
       return NextResponse.json({ error: "Customer not found." }, { status: 404 });
     }
-    [calls, events] = await Promise.all([listCalls(id), readEvents()]);
+    // Only this customer's views; no need to read every other one's.
+    [calls, events] = await Promise.all([listCalls(id), readEvents(id)]);
   } catch (error) {
     return jsonError(error);
   }

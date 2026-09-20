@@ -1,18 +1,17 @@
-import { createHash } from "node:crypto";
 import { getStore } from "./kv";
 import type { CallLog, TrackEvent } from "./types";
 
 export { STALE_CALL_MS } from "./analytics";
 
-const EVENTS = "events";
+// Page views used to go into one global list, read in full on every admin
+// request. They are per customer now so a busy prospect cannot slow down the
+// dashboard, and so deleting a customer can take their views with them. The
+// old list is still read and merged, so nothing recorded before this is lost.
+const LEGACY_EVENTS = "events";
+const eventsKey = (customerId: string) => `events:${customerId}`;
 const callKey = (customerId: string, callId: string) =>
   `calls:${customerId}:${callId}`;
 const callIndex = (customerId: string) => `calls:${customerId}`;
-
-export function hashIp(ip: string | null | undefined): string | undefined {
-  if (!ip) return undefined;
-  return createHash("sha256").update(ip).digest("hex").slice(0, 16);
-}
 
 export async function saveCall(call: CallLog): Promise<CallLog> {
   const store = getStore();
@@ -54,11 +53,10 @@ export async function listAllCalls(): Promise<CallLog[]> {
 }
 
 export async function appendEvent(event: TrackEvent): Promise<void> {
-  await getStore().push(EVENTS, JSON.stringify(event));
+  await getStore().push(eventsKey(event.customerId), JSON.stringify(event));
 }
 
-export async function readEvents(): Promise<TrackEvent[]> {
-  const lines = await getStore().range(EVENTS);
+function parseEvents(lines: string[]): TrackEvent[] {
   const events: TrackEvent[] = [];
   for (const line of lines) {
     try {
@@ -68,4 +66,27 @@ export async function readEvents(): Promise<TrackEvent[]> {
     }
   }
   return events;
+}
+
+/** Page views for one customer, or for every customer when given no id. */
+export async function readEvents(customerId?: string): Promise<TrackEvent[]> {
+  const store = getStore();
+  const legacy = parseEvents(await store.range(LEGACY_EVENTS));
+
+  if (customerId) {
+    return [
+      ...parseEvents(await store.range(eventsKey(customerId))),
+      ...legacy.filter((event) => event.customerId === customerId),
+    ];
+  }
+
+  const events: TrackEvent[] = [...legacy];
+  for (const id of await store.members("customers")) {
+    events.push(...parseEvents(await store.range(eventsKey(id))));
+  }
+  return events;
+}
+
+export async function dropEvents(customerId: string): Promise<void> {
+  await getStore().dropList(eventsKey(customerId));
 }

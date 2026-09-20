@@ -1,4 +1,5 @@
 import { getStore } from "./kv";
+import { dropEvents } from "./calls";
 import { fallbackName, parseMapsUrl } from "./maps";
 import { PROMPT_VERSION, buildPrompts } from "./prompt";
 import type { Customer } from "./types";
@@ -82,6 +83,7 @@ export async function deleteCustomer(id: string): Promise<boolean> {
     await store.del(`calls:${id}:${callId}`);
     await store.removeMember(`calls:${id}`, callId);
   }
+  await dropEvents(id);
   await store.del(key(id));
   await store.removeMember(INDEX, id);
   return true;

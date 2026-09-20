@@ -4,14 +4,17 @@ import {
   computeKpis,
   computeStats,
   countableCalls,
+  callerLines,
   demoAllowance,
+  distinctVisitors,
+  engagement,
   testCalls,
   withinDays,
   isResearchStalled,
   formatDuration,
   statsByCustomer,
 } from "../lib/analytics";
-import type { CallLog, TrackEvent } from "../lib/types";
+import type { CallLog, CustomerStats, TrackEvent } from "../lib/types";
 
 const NOW = new Date("2026-09-19T12:00:00.000Z").getTime();
 
@@ -77,6 +80,7 @@ describe("computeStats", () => {
       views: 0,
       calls: 0,
       totalSec: 0,
+      visitors: 0,
       lastCallAt: undefined,
       lastViewAt: undefined,
     });
@@ -270,5 +274,149 @@ describe("test calls and the numbers they are missing from", () => {
     const calls = [call("a", true), call("b", true)];
     expect(countableCalls(calls)).toHaveLength(0);
     expect(testCalls(calls)).toHaveLength(2);
+  });
+});
+
+describe("distinctVisitors", () => {
+  const view = (visitorId?: string): TrackEvent => ({
+    type: "page_view",
+    customerId: "abc",
+    at: "2026-09-20T10:00:00.000Z",
+    visitorId,
+  });
+
+  it("counts people, not visits", () => {
+    expect(distinctVisitors([view("v1"), view("v1"), view("v1")], [])).toBe(1);
+  });
+
+  it("counts three people at one business as three", () => {
+    expect(distinctVisitors([view("v1"), view("v2"), view("v3")], [])).toBe(3);
+  });
+
+  it("treats someone who looked and then called as one person", () => {
+    const call = {
+      id: "c1",
+      customerId: "abc",
+      liveSessionId: "s",
+      startedAt: "2026-09-20T10:05:00.000Z",
+      status: "completed" as const,
+      transcript: [],
+      isTest: false,
+      visitorId: "v1",
+    };
+    expect(distinctVisitors([view("v1")], [call])).toBe(1);
+  });
+
+  it("folds records from before visitor ids into a single unknown", () => {
+    expect(distinctVisitors([view(), view(), view("v1")], [])).toBe(2);
+  });
+});
+
+describe("engagement", () => {
+  const now = Date.parse("2026-09-20T12:00:00.000Z");
+  const stats = (over: Partial<CustomerStats> = {}): CustomerStats => ({
+    views: 0,
+    calls: 0,
+    totalSec: 0,
+    visitors: 0,
+    ...over,
+  });
+
+  it("calls a prospect who never showed up cold", () => {
+    const result = engagement(stats(), [], now);
+    expect(result.level).toBe("cold");
+    expect(result.reason).toBe("No activity yet");
+  });
+
+  it("does not warm up on link opens alone", () => {
+    const result = engagement(
+      stats({ views: 6, lastViewAt: "2026-09-20T11:00:00.000Z" }),
+      [],
+      now,
+    );
+    expect(result.level).toBe("cold");
+    expect(result.reason).toContain("never called");
+  });
+
+  it("gets hot when someone keeps calling and keeps talking", () => {
+    const calls = [1, 2, 3, 4].map((n) => ({
+      id: `c${n}`,
+      customerId: "abc",
+      liveSessionId: "s",
+      startedAt: "2026-09-20T10:00:00.000Z",
+      status: "completed" as const,
+      durationSec: 180,
+      turns: 20,
+      transcript: [],
+      isTest: false,
+    }));
+    const result = engagement(
+      stats({ views: 6, calls: 4, totalSec: 720, lastCallAt: "2026-09-20T10:00:00.000Z" }),
+      calls,
+      now,
+    );
+    expect(result.level).toBe("hot");
+    expect(result.reason).toContain("4 calls");
+    expect(result.reason).toContain("today");
+  });
+
+  it("cools the same prospect down once they stop coming back", () => {
+    const warmToday = engagement(
+      stats({ views: 2, calls: 2, totalSec: 300, lastCallAt: "2026-09-20T09:00:00.000Z" }),
+      [],
+      now,
+    );
+    const sameButStale = engagement(
+      stats({ views: 2, calls: 2, totalSec: 300, lastCallAt: "2026-07-01T09:00:00.000Z" }),
+      [],
+      now,
+    );
+    expect(sameButStale.score).toBeLessThan(warmToday.score);
+    expect(sameButStale.reason).toContain("d ago");
+  });
+});
+
+describe("callerLines", () => {
+  const call = (id: string, at: string, texts: string[]): CallLog => ({
+    id,
+    customerId: "abc",
+    liveSessionId: "s",
+    startedAt: at,
+    status: "completed",
+    isTest: false,
+    transcript: texts.map((text, index) => ({
+      id: `${id}-${index}`,
+      speaker: index % 2 === 0 ? ("caller" as const) : ("receptionist" as const),
+      text,
+      startMs: index * 1000,
+      endMs: index * 1000 + 500,
+    })),
+  });
+
+  it("keeps what the caller said and drops what the receptionist said", () => {
+    const lines = callerLines([call("c1", "2026-09-20T10:00:00.000Z", [
+      "Do you deliver?",
+      "We do, within two miles.",
+      "How much is it?",
+    ])]);
+    expect(lines.map((line) => line.text)).toEqual(["Do you deliver?", "How much is it?"]);
+  });
+
+  it("puts the most recent call first", () => {
+    const lines = callerLines([
+      call("old", "2026-09-01T10:00:00.000Z", ["older question"]),
+      call("new", "2026-09-20T10:00:00.000Z", ["newer question"]),
+    ]);
+    expect(lines[0].text).toBe("newer question");
+  });
+
+  it("keeps the call each line came from, so it can be opened", () => {
+    const lines = callerLines([call("c1", "2026-09-20T10:00:00.000Z", ["Hello"])]);
+    expect(lines[0].callId).toBe("c1");
+  });
+
+  it("ignores blank fragments the transcript picked up", () => {
+    const lines = callerLines([call("c1", "2026-09-20T10:00:00.000Z", ["  ", "x", "Real question"])]);
+    expect(lines.map((line) => line.text)).toEqual(["Real question"]);
   });
 });

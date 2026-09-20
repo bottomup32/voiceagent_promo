@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { nanoid } from "nanoid";
 import { getCustomer } from "@/lib/store";
-import { hashIp, listCalls, saveCall } from "@/lib/calls";
+import { listCalls, saveCall } from "@/lib/calls";
+import { visitorId } from "@/lib/visitor";
 import { demoAllowance } from "@/lib/analytics";
 import { DEFAULT_DEMO_MINUTES } from "@/lib/types";
 import { isAdminRequest } from "@/lib/auth";
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
       status: "started",
       transcript: [],
       userAgent: request.headers.get("user-agent") ?? undefined,
-      ipHash: hashIp(ip),
+      visitorId: await visitorId(),
       isTest,
     };
     await saveCall(call);

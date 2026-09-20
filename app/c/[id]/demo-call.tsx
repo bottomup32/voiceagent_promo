@@ -289,6 +289,10 @@ export function DemoCall({
         <p className="ta-caption-1 text-muted-foreground text-center">
           A TecAce demo. The business shown here has not endorsed it.
         </p>
+        <p className="ta-caption-2 text-muted-foreground max-w-md text-center">
+          So we can see how the demo went, this page counts visits and keeps
+          what was said on the call. Nothing is shared outside TecAce.
+        </p>
         <VersionBadge />
       </footer>
     </main>

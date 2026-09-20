@@ -1,4 +1,10 @@
-import type { CallLog, CustomerStats, TrackEvent } from "./types";
+import type {
+  CallLog,
+  CustomerStats,
+  Engagement,
+  Heat,
+  TrackEvent,
+} from "./types";
 
 /** A call left in "started" for longer than this is treated as abandoned. */
 export const STALE_CALL_MS = 10 * 60 * 1000;
@@ -110,6 +116,7 @@ export function computeStats(
     views,
     calls: real.length,
     totalSec,
+    visitors: distinctVisitors(events, calls),
     lastCallAt: lastCall?.startedAt,
     lastViewAt: lastView,
   };
@@ -141,7 +148,26 @@ export function statsByCustomer(
 }
 
 export function emptyStats(): CustomerStats {
-  return { views: 0, calls: 0, totalSec: 0 };
+  return { views: 0, calls: 0, totalSec: 0, visitors: 0 };
+}
+
+/** Heat per customer, for the list, where the calls are already to hand. */
+export function heatByCustomer(
+  calls: CallLog[],
+  stats: Record<string, CustomerStats>,
+  now = Date.now(),
+): Record<string, Engagement> {
+  const callsFor = new Map<string, CallLog[]>();
+  for (const call of calls) {
+    const list = callsFor.get(call.customerId) ?? [];
+    list.push(call);
+    callsFor.set(call.customerId, list);
+  }
+  const out: Record<string, Engagement> = {};
+  for (const [id, stat] of Object.entries(stats)) {
+    out[id] = engagement(stat, callsFor.get(id) ?? [], now);
+  }
+  return out;
 }
 
 export type DayBucket = { date: string; calls: number; minutes: number };
@@ -212,4 +238,97 @@ export function formatDuration(seconds: number | undefined): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.round(seconds % 60);
   return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+/**
+ * How many different browsers opened this demo, as opposed to how many times it
+ * was opened. A link goes to a business, and several people there may try it —
+ * "three people once each" and "one person three times" are different news.
+ *
+ * Records written before visitor ids existed carry none, so they count as one
+ * unknown visitor between them rather than as none at all.
+ */
+export function distinctVisitors(
+  events: TrackEvent[],
+  calls: CallLog[],
+): number {
+  const seen = new Set<string>();
+  let anonymous = false;
+  for (const item of [...events, ...calls]) {
+    if (item.visitorId) seen.add(item.visitorId);
+    else anonymous = true;
+  }
+  return seen.size + (anonymous ? 1 : 0);
+}
+
+const WARM_SCORE = 25;
+const HOT_SCORE = 60;
+
+/**
+ * How interested a prospect looks. Deliberately a few plain terms rather than
+ * anything clever, because the number is only useful if the operator can see
+ * why it is what it is: talking for longer and coming back recently count,
+ * opening the link and never calling barely does.
+ */
+export function engagement(
+  stats: CustomerStats,
+  calls: CallLog[],
+  now = Date.now(),
+): Engagement {
+  const real = countableCalls(calls, now);
+  const minutes = stats.totalSec / 60;
+  const turns = real.reduce(
+    (sum, call) => sum + (call.turns ?? call.transcript.length),
+    0,
+  );
+
+  let score = stats.calls * 12 + minutes * 6 + turns * 0.6 + Math.min(stats.views, 10);
+
+  // A prospect who tried it last week is not the prospect who tried it today.
+  const lastAt = stats.lastCallAt ?? stats.lastViewAt;
+  const days = lastAt
+    ? (now - new Date(lastAt).getTime()) / 86_400_000
+    : Number.POSITIVE_INFINITY;
+  if (Number.isFinite(days)) {
+    if (days > 30) score *= 0.4;
+    else if (days > 14) score *= 0.6;
+    else if (days > 7) score *= 0.8;
+  }
+
+  score = Math.round(score);
+  const level: Heat = score >= HOT_SCORE ? "hot" : score >= WARM_SCORE ? "warm" : "cold";
+
+  const parts: string[] = [];
+  if (stats.calls) parts.push(`${stats.calls} call${stats.calls === 1 ? "" : "s"}`);
+  if (minutes >= 0.1) parts.push(`${Math.round(minutes * 10) / 10} min`);
+  if (!stats.calls && stats.views) {
+    parts.push(`${stats.views} open${stats.views === 1 ? "" : "s"}, never called`);
+  }
+  if (Number.isFinite(days)) {
+    parts.push(days < 1 ? "today" : `${Math.round(days)}d ago`);
+  }
+
+  return { score, level, reason: parts.join(" · ") || "No activity yet" };
+}
+
+export type CallerLine = { callId: string; at: string; text: string };
+
+/**
+ * What the callers actually said, newest first. This is the part of a demo that
+ * tells you what the business wants to know — whether they asked about price,
+ * or tried to book something, or were testing whether it would break.
+ */
+export function callerLines(calls: CallLog[], limit = 50): CallerLine[] {
+  const lines: CallerLine[] = [];
+  for (const call of calls) {
+    for (const entry of call.transcript) {
+      if (entry.speaker !== "caller") continue;
+      const text = entry.text.trim();
+      if (!text) continue;
+      lines.push({ callId: call.id, at: call.startedAt, text });
+    }
+  }
+  return lines
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, limit);
 }

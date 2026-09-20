@@ -2,7 +2,12 @@ import { NextResponse, after } from "next/server";
 import { nanoid } from "nanoid";
 import { getCustomer, listCustomers, saveCustomer } from "@/lib/store";
 import { listAllCalls, readEvents } from "@/lib/calls";
-import { emptyStats, statsByCustomer } from "@/lib/analytics";
+import {
+  emptyStats,
+  engagement,
+  heatByCustomer,
+  statsByCustomer,
+} from "@/lib/analytics";
 import { assertWritableStore } from "@/lib/kv";
 import { jsonError } from "@/lib/api";
 import { isMapsUrl } from "@/lib/maps";
@@ -25,9 +30,11 @@ export async function GET() {
       readEvents(),
     ]);
     const stats = statsByCustomer(calls, events);
+    const heat = heatByCustomer(calls, stats);
     const withStats: CustomerWithStats[] = customers.map((customer) => ({
       ...customer,
       stats: stats[customer.id] ?? emptyStats(),
+      heat: heat[customer.id] ?? engagement(emptyStats(), []),
     }));
     return NextResponse.json({ customers: withStats });
   } catch (error) {

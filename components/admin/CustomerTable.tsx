@@ -2,7 +2,16 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Copy, ExternalLink, Mail, MoreHorizontal, Trash2, Users } from "lucide-react";
+import {
+  ArrowDown,
+  Copy,
+  ExternalLink,
+  Mail,
+  MoreHorizontal,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,15 +74,69 @@ function relative(iso?: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+/** Which column the list is ordered by. Heat first: it answers "who now?". */
+type SortKey = "heat" | "name" | "views" | "visitors" | "calls" | "minutes" | "last";
+
+const SORTS: Record<SortKey, (a: CustomerWithStats, b: CustomerWithStats) => number> = {
+  heat: (a, b) => b.heat.score - a.heat.score,
+  name: (a, b) => (a.profile.name || "").localeCompare(b.profile.name || ""),
+  views: (a, b) => b.stats.views - a.stats.views,
+  visitors: (a, b) => b.stats.visitors - a.stats.visitors,
+  calls: (a, b) => b.stats.calls - a.stats.calls,
+  minutes: (a, b) => b.stats.totalSec - a.stats.totalSec,
+  last: (a, b) =>
+    (b.stats.lastCallAt ?? b.stats.lastViewAt ?? "").localeCompare(
+      a.stats.lastCallAt ?? a.stats.lastViewAt ?? "",
+    ),
+};
+
+const HEAT_KIND = { hot: "negative", warm: "caution", cold: "neutral" } as const;
+
+function SortHead({
+  label,
+  column,
+  sort,
+  onSort,
+  className,
+}: {
+  label: string;
+  column: SortKey;
+  sort: SortKey;
+  onSort: (column: SortKey) => void;
+  className?: string;
+}) {
+  const active = sort === column;
+  return (
+    <TableHead className={cn("ta-caption-1 text-muted-foreground", className)}>
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className={cn(
+          "hover:text-foreground inline-flex items-center gap-1",
+          active && "text-foreground",
+        )}
+        aria-label={`Sort by ${label.toLowerCase()}`}
+      >
+        {label}
+        <ArrowDown
+          className={cn("size-3", active ? "opacity-100" : "opacity-0")}
+          aria-hidden
+        />
+      </button>
+    </TableHead>
+  );
+}
+
 export function CustomerTable({ customers, onChanged }: Props) {
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("heat");
   const [pendingDelete, setPendingDelete] = useState<CustomerWithStats | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return customers.filter((customer) => {
+    const filtered = customers.filter((customer) => {
       if (status !== "all" && customer.status !== status) return false;
       if (!term) return true;
       return [
@@ -85,7 +148,8 @@ export function CustomerTable({ customers, onChanged }: Props) {
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(term));
     });
-  }, [customers, query, status]);
+    return [...filtered].sort(SORTS[sort]);
+  }, [customers, query, sort, status]);
 
   async function toggleActive(customer: CustomerWithStats, active: boolean) {
     setBusyId(customer.id);
@@ -171,22 +235,46 @@ export function CustomerTable({ customers, onChanged }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="ta-caption-1 text-muted-foreground">Business</TableHead>
+              <SortHead label="Business" column="name" sort={sort} onSort={setSort} />
               <TableHead className="ta-caption-1 text-muted-foreground">Contact</TableHead>
+              <SortHead label="Interest" column="heat" sort={sort} onSort={setSort} />
               <TableHead className="ta-caption-1 text-muted-foreground">Status</TableHead>
               <TableHead className="ta-caption-1 text-muted-foreground">Live</TableHead>
-              <TableHead className="ta-caption-1 text-muted-foreground text-right">
-                Views
-              </TableHead>
-              <TableHead className="ta-caption-1 text-muted-foreground text-right">
-                Calls
-              </TableHead>
-              <TableHead className="ta-caption-1 text-muted-foreground text-right">
-                Minutes
-              </TableHead>
-              <TableHead className="ta-caption-1 text-muted-foreground hidden xl:table-cell">
-                Last call
-              </TableHead>
+              <SortHead
+                label="People"
+                column="visitors"
+                sort={sort}
+                onSort={setSort}
+                className="text-right"
+              />
+              <SortHead
+                label="Opens"
+                column="views"
+                sort={sort}
+                onSort={setSort}
+                className="text-right"
+              />
+              <SortHead
+                label="Calls"
+                column="calls"
+                sort={sort}
+                onSort={setSort}
+                className="text-right"
+              />
+              <SortHead
+                label="Minutes"
+                column="minutes"
+                sort={sort}
+                onSort={setSort}
+                className="text-right"
+              />
+              <SortHead
+                label="Last call"
+                column="last"
+                sort={sort}
+                onSort={setSort}
+                className="hidden xl:table-cell"
+              />
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -215,6 +303,16 @@ export function CustomerTable({ customers, onChanged }: Props) {
                   ) : null}
                 </TableCell>
                 <TableCell>
+                  <span title={customer.heat.reason}>
+                    <StatusBadge kind={HEAT_KIND[customer.heat.level]}>
+                      {customer.heat.level}
+                    </StatusBadge>
+                  </span>
+                  <span className="ta-caption-2 text-muted-foreground block pt-0.5">
+                    {customer.heat.reason}
+                  </span>
+                </TableCell>
+                <TableCell>
                   <StatusBadge
                     kind={
                       isResearchStalled(customer)
@@ -238,6 +336,9 @@ export function CustomerTable({ customers, onChanged }: Props) {
                     onCheckedChange={(checked) => toggleActive(customer, checked)}
                     aria-label={`Toggle the demo for ${customer.profile.name}`}
                   />
+                </TableCell>
+                <TableCell className="ta-label-1 text-right tabular-nums">
+                  {customer.stats.visitors}
                 </TableCell>
                 <TableCell className="ta-label-1 text-right tabular-nums">
                   {customer.stats.views}

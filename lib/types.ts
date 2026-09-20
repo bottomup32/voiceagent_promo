@@ -117,7 +117,9 @@ export type CallLog = {
   turns?: number;
   transcript: TranscriptEntry[];
   userAgent?: string;
+  /** Retired in favour of visitorId; still read on older records. */
   ipHash?: string;
+  visitorId?: string;
   isTest: boolean;
 };
 
@@ -130,21 +132,37 @@ export type CallState =
   | "ended"
   | "error";
 
+export type Heat = "cold" | "warm" | "hot";
+
+export type Engagement = {
+  score: number;
+  level: Heat;
+  /** The same thing in words, so the badge can explain itself. */
+  reason: string;
+};
+
 export type CustomerStats = {
   views: number;
   calls: number;
   totalSec: number;
+  /** Different browsers, not different visits. */
+  visitors: number;
   lastCallAt?: string;
   lastViewAt?: string;
 };
 
-export type CustomerWithStats = Customer & { stats: CustomerStats };
+export type CustomerWithStats = Customer & {
+  stats: CustomerStats;
+  heat: Engagement;
+};
 
 export type TrackEvent = {
   type: "page_view";
   customerId: string;
   at: string;
+  /** Retired in favour of visitorId; still read on older records. */
   ipHash?: string;
+  visitorId?: string;
 };
 
 export type VoiceOption = {

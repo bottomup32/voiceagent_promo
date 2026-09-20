@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { Transcript } from "@/components/call/Transcript";
 import { EmptyState, StatusBadge } from "@/components/admin/shared";
-import { formatDuration } from "@/lib/analytics";
+import { callerLines, formatDuration } from "@/lib/analytics";
 import type { CallLog } from "@/lib/types";
 
 const STATUS_KIND = {
@@ -66,6 +66,9 @@ export function ActivityTab({
   }
 
   const testCount = calls.filter((call) => call.isTest).length;
+  // The most useful thing in a demo is what the caller wanted, not how long
+  // they stayed. Their own words, newest first, each opening the call it is from.
+  const asked = callerLines(calls, 30);
 
   if (calls.length === 0) {
     return (
@@ -86,6 +89,34 @@ export function ActivityTab({
           Switch one off if a customer made it.
         </p>
       ) : null}
+      {asked.length ? (
+        <section className="mb-6 space-y-2">
+          <h3 className="ta-headline-2">What they asked</h3>
+          <p className="ta-caption-1 text-muted-foreground">
+            Every line the callers said, newest first. Click one to read the call
+            it came from.
+          </p>
+          <ul className="max-h-64 space-y-1 overflow-y-auto pt-1">
+            {asked.map((line, index) => (
+              <li key={`${line.callId}-${index}`}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelected(calls.find((call) => call.id === line.callId) ?? null)
+                  }
+                  className="hover:bg-accent ta-body-2 w-full rounded-lg px-2 py-1.5 text-left"
+                >
+                  {line.text}
+                  <span className="ta-caption-2 text-muted-foreground block">
+                    {new Date(line.at).toLocaleString()}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <Table>
         <TableHeader>
           <TableRow>

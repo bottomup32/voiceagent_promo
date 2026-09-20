@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { assertWritableStore } from "@/lib/kv";
-import { appendEvent, hashIp } from "@/lib/calls";
+import { appendEvent } from "@/lib/calls";
+import { visitorId } from "@/lib/visitor";
 import { getCustomer } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -25,12 +26,11 @@ export async function POST(request: Request) {
 
   try {
     assertWritableStore();
-    const forwarded = request.headers.get("x-forwarded-for");
     await appendEvent({
       type: "page_view",
       customerId: customer.id,
       at: new Date().toISOString(),
-      ipHash: hashIp(forwarded?.split(",")[0]?.trim() || "local"),
+      visitorId: await visitorId(),
     });
   } catch (error) {
     return jsonError(error);
