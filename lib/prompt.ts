@@ -1,10 +1,13 @@
+import { knownHours } from "./hours";
 import type { BusinessProfile, CustomerPrompts } from "./types";
 
 function hoursLine(profile: BusinessProfile): string {
-  if (!profile.hours?.length) return "Hours: unknown.";
-  const parts = profile.hours.map((hour) =>
-    hour.closed ? `${hour.day}: closed` : `${hour.day}: ${hour.open}-${hour.close}`,
-  );
+  const known = knownHours(profile.hours);
+  if (!known.length) {
+    // Saying "unknown" is what stops the receptionist inventing an answer.
+    return "Hours: unknown. If a caller asks, say you do not have the hours in front of you and offer to take a message.";
+  }
+  const parts = known.map((hour) => `${hour.day}: ${hour.text}`);
   return `Hours: ${parts.join("; ")}.`;
 }
 

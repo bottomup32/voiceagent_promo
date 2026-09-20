@@ -1,5 +1,6 @@
 "use client";
 
+import { knownHours } from "@/lib/hours";
 import type { BusinessProfile } from "@/lib/types";
 
 type Props = { profile: BusinessProfile };
@@ -32,8 +33,8 @@ function Section({
 }
 
 export function BusinessKnowledge({ profile }: Props) {
-  const openDays = profile.hours?.filter((hour) => !hour.closed) ?? [];
-  const closedDays = profile.hours?.filter((hour) => hour.closed) ?? [];
+  // A day the research could not pin down says nothing, so it shows nothing.
+  const days = knownHours(profile.hours);
 
   return (
     <div className="space-y-6">
@@ -56,24 +57,18 @@ export function BusinessKnowledge({ profile }: Props) {
         </div>
       </Section>
 
-      {profile.hours?.length ? (
+      {days.length ? (
         <Section title="Hours">
           <div className="space-y-1">
-            {openDays.map((hour) => (
-              <div key={hour.day} className="ta-body-2 flex justify-between gap-4">
-                <span>{hour.day}</span>
-                <span className="tabular-nums">
-                  {hour.open} to {hour.close}
-                </span>
-              </div>
-            ))}
-            {closedDays.map((hour) => (
+            {days.map((hour) => (
               <div
                 key={hour.day}
-                className="ta-body-2 text-muted-foreground flex justify-between gap-4"
+                className={`ta-body-2 flex justify-between gap-4${
+                  hour.text === "Closed" ? " text-muted-foreground" : ""
+                }`}
               >
                 <span>{hour.day}</span>
-                <span>Closed</span>
+                <span className="tabular-nums">{hour.text}</span>
               </div>
             ))}
           </div>

@@ -32,8 +32,8 @@ describe("buildPrompts", () => {
   });
 
   it("states hours, services, and policies as facts the voice layer owns", () => {
-    expect(prompts.live).toContain("Monday: 10:00-05:00");
-    expect(prompts.live).toContain("Sunday: closed");
+    expect(prompts.live).toContain("Monday: 10:00 to 05:00");
+    expect(prompts.live).toContain("Sunday: Closed");
     expect(prompts.live).toContain("Cheese slice ($3.75)");
     expect(prompts.live).toContain("Reservations: No reservations");
   });
@@ -134,5 +134,51 @@ describe("resolvePrompts", () => {
     });
     expect(next.edited).toBe(false);
     expect(next.greeting).toContain("this is Sam!");
+  });
+});
+
+describe("hours that research could not find", () => {
+  const noHours: BusinessProfile = {
+    name: "TecAce Software",
+    category: "Software company",
+    address: "840 140th Ave NE, Bellevue, WA 98005",
+    // What a B2B company's research honestly returns: the days, no times.
+    hours: [
+      { day: "Monday", open: "", close: "", closed: false },
+      { day: "Tuesday", open: "", close: "", closed: false },
+    ],
+    services: [],
+    highlights: [],
+    policies: {},
+    faqs: [],
+  };
+
+  it("never puts undefined in front of the receptionist", () => {
+    const prompts = buildPrompts(noHours, "Alex");
+    expect(prompts.live).not.toContain("undefined");
+    expect(prompts.backend).not.toContain("undefined");
+  });
+
+  it("says the hours are unknown and what to do about it", () => {
+    const prompts = buildPrompts(noHours, "Alex");
+    expect(prompts.live).toContain("Hours: unknown.");
+    expect(prompts.live).toContain("offer to take a message");
+  });
+
+  it("still reports the days it does know", () => {
+    const partial = buildPrompts(
+      {
+        ...noHours,
+        hours: [
+          { day: "Monday", open: "09:00", close: "17:00", closed: false },
+          { day: "Tuesday", open: "", close: "", closed: false },
+          { day: "Sunday", open: "", close: "", closed: true },
+        ],
+      },
+      "Alex",
+    );
+    expect(partial.live).toContain("Monday: 09:00 to 17:00");
+    expect(partial.live).toContain("Sunday: Closed");
+    expect(partial.live).not.toContain("Tuesday");
   });
 });
