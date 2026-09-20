@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { CallAudio, resolveCallSound } from "@/lib/call-audio";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { CallAudio, resolveCallSound, type CallMeters } from "@/lib/call-audio";
 import { readJson } from "@/lib/http";
 import { Ringtone } from "@/lib/ringtone";
 import { spokenGreeting } from "@/lib/prompt";
@@ -56,6 +56,12 @@ export type UseLiveCall = {
   muted: boolean;
   thinking: boolean;
   error: string | null;
+  /**
+   * Analysers on the microphone and the agent's voice, for the listening
+   * orb. A ref, not state: it is read sixty times a second by a canvas and
+   * must never re-render React. Both null outside a call.
+   */
+  meters: RefObject<CallMeters>;
   dial: () => Promise<void>;
   hangup: () => void;
   toggleMute: () => void;
@@ -85,6 +91,7 @@ export function useLiveCall(
   const dcRef = useRef<RTCDataChannel | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<CallAudio | null>(null);
+  const metersRef = useRef<CallMeters>({ input: null, output: null });
   const ringtoneRef = useRef<Ringtone | null>(null);
   const soundRef = useRef(resolveCallSound(callSound));
   const callIdRef = useRef<string | null>(null);
@@ -129,6 +136,7 @@ export function useLiveCall(
     streamRef.current = null;
     audioRef.current?.stop();
     audioRef.current = null;
+    metersRef.current = { input: null, output: null };
   }, [stopRingtone]);
 
   const report = useCallback(
@@ -280,6 +288,10 @@ export function useLiveCall(
 
       const callAudio = new CallAudio();
       audioRef.current = callAudio;
+      // One object for the life of the call; the analysers fill in as the
+      // mic and then the agent's stream arrive.
+      metersRef.current = callAudio.meters;
+      callAudio.meterInput(stream);
       pc.addEventListener("track", (event) => {
         const remote = event.streams[0] ?? new MediaStream([event.track]);
         if (!callAudio.attach(remote, soundRef.current)) {
@@ -409,6 +421,7 @@ export function useLiveCall(
     muted,
     thinking,
     error,
+    meters: metersRef,
     dial,
     hangup,
     toggleMute,

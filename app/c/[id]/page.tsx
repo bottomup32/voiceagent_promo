@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Props) {
   const customer = await loadCustomer(id);
   return {
     title: customer?.profile.name
-      ? `Call ${customer.profile.name}`
+      ? `${customer.profile.name}, answered — a TecAce demo`
       : "TecAce voice agent",
     description:
       "Talk to an AI receptionist built for this business, and see what else " +

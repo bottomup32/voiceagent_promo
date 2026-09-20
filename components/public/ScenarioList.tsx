@@ -10,6 +10,7 @@ import {
   Voicemail,
   type LucideIcon,
 } from "lucide-react";
+import { Exchange } from "@/components/public/Exchange";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { businessNouns, buildUseCases, type UseCase } from "@/lib/use-cases";
@@ -65,25 +66,12 @@ function Scenario({
         <div className="bg-muted/50 flex flex-col gap-2 rounded-lg p-3">
           <p className="ta-caption-2 text-muted-foreground">How it sounds</p>
           {useCase.example.map((turn, index) => (
-            <div
+            <Exchange
               key={index}
-              className={`flex flex-col gap-0.5 ${
-                turn.speaker === "caller" ? "items-end" : "items-start"
-              }`}
-            >
-              <span className="ta-caption-2 text-muted-foreground px-1">
-                {turn.speaker === "caller" ? "Caller" : agentName}
-              </span>
-              <p
-                className={`ta-body-2 max-w-[92%] rounded-lg px-3 py-2 ${
-                  turn.speaker === "caller"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground"
-                }`}
-              >
-                {turn.text}
-              </p>
-            </div>
+              speaker={turn.speaker}
+              text={turn.text}
+              agentName={agentName}
+            />
           ))}
         </div>
       </CardContent>

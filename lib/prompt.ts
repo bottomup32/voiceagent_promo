@@ -109,8 +109,18 @@ export function buildGreetingPrompt(profile: BusinessProfile, agentName: string)
  * greeting freely, so fall back to the whole thing when it has no quoted line.
  */
 export function spokenGreeting(greeting: string): string {
+  return quotedGreeting(greeting) ?? greeting.trim();
+}
+
+/**
+ * Only the quoted line, or nothing. The demo page shows this as a bubble
+ * before anyone calls, and an unquoted operator rewrite is an instruction,
+ * not something the receptionist says — so unlike the rescue above it must
+ * never fall back to the whole text.
+ */
+export function quotedGreeting(greeting: string): string | null {
   const quoted = /"([^"]{4,})"/.exec(greeting);
-  return (quoted?.[1] ?? greeting).trim();
+  return quoted ? quoted[1].trim() : null;
 }
 
 /**

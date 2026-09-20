@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompts, resolvePrompts, spokenGreeting } from "../lib/prompt";
+import { buildPrompts, quotedGreeting, resolvePrompts, spokenGreeting } from "../lib/prompt";
 import type { BusinessProfile } from "../lib/types";
 
 const profile: BusinessProfile = {
@@ -242,5 +242,28 @@ describe("opening the call", () => {
     expect(spokenGreeting('Greet them. Use "hi" and nothing else.')).toBe(
       'Greet them. Use "hi" and nothing else.',
     );
+  });
+});
+
+/**
+ * The demo page shows the greeting as a bubble before anyone calls. Unlike
+ * the rescue, it must never show the instruction itself — an unquoted
+ * operator rewrite is an instruction, not something the receptionist says.
+ */
+describe("quotedGreeting", () => {
+  const prompts = buildPrompts(profile, "Alex");
+
+  it("returns the quoted sentence", () => {
+    expect(quotedGreeting(prompts.greeting)).toBe(
+      "Thanks for calling Joe's Pizza, this is Alex! How can I help you today?",
+    );
+  });
+
+  it("returns null, not the instruction, when nothing is quoted", () => {
+    expect(quotedGreeting("Say hello and ask what they need.")).toBeNull();
+  });
+
+  it("returns null for a quote too short to be a greeting", () => {
+    expect(quotedGreeting('Greet them. Use "hi" and nothing else.')).toBeNull();
   });
 });

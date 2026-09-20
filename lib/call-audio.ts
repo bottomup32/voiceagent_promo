@@ -5,6 +5,10 @@ import { DEFAULT_CALL_SOUND } from "./types";
  * Makes the call sound like a phone call rather than a studio recording:
  * the agent's voice is narrowed to the telephone band, and a quiet room tone
  * plays underneath. Both parts are optional and tuned to stay subtle.
+ *
+ * The same graph carries two analysers — one on the microphone, one on the
+ * agent's voice — so the page can draw who is talking without a second
+ * audio context.
  */
 
 export const PHONE_BAND = {
@@ -33,6 +37,9 @@ export const ROOM_TONE = {
   loopSeconds: 4,
 } as const;
 
+/** Small enough to read at 60 fps without lag, large enough to average a syllable. */
+const METER_FFT = 512;
+
 export function resolveCallSound(sound?: Partial<CallSound> | null): CallSound {
   return {
     phoneLine: sound?.phoneLine ?? DEFAULT_CALL_SOUND.phoneLine,
@@ -50,6 +57,12 @@ export function fillRoomToneBuffer(channel: Float32Array, random = Math.random):
   }
 }
 
+/** The two things the orb listens to. Either is null until its stream arrives, or forever without Web Audio. */
+export type CallMeters = {
+  input: AnalyserNode | null;
+  output: AnalyserNode | null;
+};
+
 type Ctor = typeof AudioContext;
 
 function audioContextCtor(): Ctor | undefined {
@@ -66,6 +79,49 @@ export class CallAudio {
   private roomToneSource: AudioBufferSourceNode | null = null;
   private roomToneGain: GainNode | null = null;
   private drift: OscillatorNode | null = null;
+  private inputSource: MediaStreamAudioSourceNode | null = null;
+
+  readonly meters: CallMeters = { input: null, output: null };
+
+  private ensureContext(): AudioContext | null {
+    if (this.context) return this.context;
+    const Ctor = audioContextCtor();
+    if (!Ctor) return null;
+    try {
+      const context = new Ctor();
+      this.context = context;
+      void context.resume().catch(() => undefined);
+      return context;
+    } catch {
+      return null;
+    }
+  }
+
+  private analyser(context: AudioContext): AnalyserNode {
+    const node = context.createAnalyser();
+    node.fftSize = METER_FFT;
+    node.smoothingTimeConstant = 0.6;
+    return node;
+  }
+
+  /**
+   * Listens to the microphone for the meter only. The mic reaches the call
+   * over WebRTC, not through this graph, so the analyser is a dead end and
+   * nothing here is played back.
+   */
+  meterInput(stream: MediaStream): void {
+    const context = this.ensureContext();
+    if (!context) return;
+    try {
+      const source = context.createMediaStreamSource(stream);
+      const analyser = this.analyser(context);
+      source.connect(analyser);
+      this.inputSource = source;
+      this.meters.input = analyser;
+    } catch {
+      this.meters.input = null;
+    }
+  }
 
   /**
    * Routes the agent's audio through the effect chain. Returns false when the
@@ -73,9 +129,6 @@ export class CallAudio {
    * straight through the audio element.
    */
   attach(stream: MediaStream, sound: CallSound): boolean {
-    const Ctor = audioContextCtor();
-    if (!Ctor) return false;
-
     // Chrome only pulls frames from a remote WebRTC stream once it is attached
     // to a media element, so keep one alive and silent behind the graph.
     const element = document.createElement("audio");
@@ -85,11 +138,10 @@ export class CallAudio {
     void element.play().catch(() => undefined);
     this.element = element;
 
-    try {
-      const context = new Ctor();
-      this.context = context;
-      void context.resume().catch(() => undefined);
+    const context = this.ensureContext();
+    if (!context) return false;
 
+    try {
       const source = context.createMediaStreamSource(stream);
       let node: AudioNode = source;
 
@@ -117,6 +169,11 @@ export class CallAudio {
         presence.connect(makeup);
         node = makeup;
       }
+
+      // The meter taps the voice as the visitor hears it, after the band-limit.
+      const analyser = this.analyser(context);
+      node.connect(analyser);
+      this.meters.output = analyser;
 
       node.connect(context.destination);
 
@@ -191,6 +248,10 @@ export class CallAudio {
     this.drift = null;
     this.roomToneGain?.disconnect();
     this.roomToneGain = null;
+    this.inputSource?.disconnect();
+    this.inputSource = null;
+    this.meters.input = null;
+    this.meters.output = null;
 
     if (this.element) {
       this.element.srcObject = null;
