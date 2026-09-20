@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
 import { listCalls } from "@/lib/calls";
 import { getCustomer } from "@/lib/store";
 
@@ -12,5 +13,9 @@ export async function GET(_request: Request, { params }: Params) {
   if (!customer) {
     return NextResponse.json({ error: "Customer not found." }, { status: 404 });
   }
-  return NextResponse.json({ calls: await listCalls(id) });
+  try {
+    return NextResponse.json({ calls: await listCalls(id) });
+  } catch (error) {
+    return jsonError(error);
+  }
 }

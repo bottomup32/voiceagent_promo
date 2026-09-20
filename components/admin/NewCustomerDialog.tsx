@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { readJson } from "@/lib/http";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,8 +47,7 @@ export function NewCustomerDialog({ onCreated }: { onCreated: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error || "Could not add the customer.");
+      await readJson<{ customer: unknown }>(response);
       toast.success("Customer added. Research is running.");
       setOpen(false);
       setForm({

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, LogOut, Users } from "lucide-react";
+import { VersionBadge } from "@/components/VersionBadge";
 import {
   Sidebar,
   SidebarContent,
@@ -62,6 +63,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <VersionBadge className="px-2 group-data-[collapsible=icon]:hidden" />
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={signOut} tooltip="Sign out">

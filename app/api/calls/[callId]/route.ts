@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
+import { assertWritableStore } from "@/lib/kv";
 import { findCall, saveCall } from "@/lib/calls";
 import type { CallStatus, TranscriptEntry } from "@/lib/types";
 
@@ -40,15 +42,20 @@ export async function POST(request: Request, { params }: Params) {
       ? Math.round(body.durationSec)
       : undefined;
 
-  await saveCall({
-    ...call,
-    status,
-    endedAt: new Date().toISOString(),
-    durationSec,
-    endReason: body.endReason?.slice(0, 120),
-    turns: transcript.length,
-    transcript,
-  });
+  try {
+    assertWritableStore();
+    await saveCall({
+      ...call,
+      status,
+      endedAt: new Date().toISOString(),
+      durationSec,
+      endReason: body.endReason?.slice(0, 120),
+      turns: transcript.length,
+      transcript,
+    });
+  } catch (error) {
+    return jsonError(error);
+  }
 
   return NextResponse.json({ ok: true });
 }

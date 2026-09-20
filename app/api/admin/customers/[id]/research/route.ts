@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
 import { getCustomer, saveCustomer } from "@/lib/store";
 import { researchBusiness } from "@/lib/research";
 import { buildPrompts } from "@/lib/prompt";
@@ -45,15 +46,19 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "Enter the business name." }, { status: 400 });
   }
 
-  await saveCustomer({
-    ...customer,
-    businessName,
-    websiteUrl,
-    mapsUrl,
-    researchNotes,
-    status: "researching",
-    error: undefined,
-  });
+  try {
+    await saveCustomer({
+      ...customer,
+      businessName,
+      websiteUrl,
+      mapsUrl,
+      researchNotes,
+      status: "researching",
+      error: undefined,
+    });
+  } catch (error) {
+    return jsonError(error);
+  }
 
   try {
     const result = await researchBusiness({

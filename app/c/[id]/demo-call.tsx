@@ -9,6 +9,7 @@ import { PromptView } from "@/components/public/PromptView";
 import { SourcesPanel } from "@/components/research/SourcesPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VersionBadge } from "@/components/VersionBadge";
 import { useLiveCall } from "@/hooks/useLiveCall";
 import type {
   BusinessProfile,
@@ -159,10 +160,13 @@ export function DemoCall({
         </CardContent>
       </Card>
 
-      <p className="ta-caption-1 text-muted-foreground pb-4 text-center">
-        This page is a preview. Ask us for a change and it goes live on the next
-        call.
-      </p>
+      <footer className="flex flex-col items-center gap-1 pb-4">
+        <p className="ta-caption-1 text-muted-foreground text-center">
+          This page is a preview. Ask us for a change and it goes live on the next
+          call.
+        </p>
+        <VersionBadge />
+      </footer>
     </main>
   );
 }

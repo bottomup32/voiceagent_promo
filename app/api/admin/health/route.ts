@@ -16,6 +16,8 @@ export async function GET() {
     ? existsSync(cliPath)
     : false;
 
+  const version = process.env.NEXT_PUBLIC_APP_VERSION ?? "unknown";
+
   const checks = {
     storage: {
       kind: store,
@@ -59,5 +61,5 @@ export async function GET() {
   };
 
   const ok = Object.values(checks).every((check) => check.ok);
-  return NextResponse.json({ ok, onVercel, checks }, { status: ok ? 200 : 503 });
+  return NextResponse.json({ ok, version, onVercel, checks }, { status: ok ? 200 : 503 });
 }

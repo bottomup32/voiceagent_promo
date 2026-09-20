@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
 import { getCustomer } from "@/lib/store";
 import { resolveCallSound } from "@/lib/call-audio";
 
@@ -8,7 +9,12 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
-  const customer = await getCustomer(id);
+  let customer;
+  try {
+    customer = await getCustomer(id);
+  } catch (error) {
+    return jsonError(error);
+  }
   if (!customer || !customer.active || customer.status !== "ready") {
     return NextResponse.json({ error: "This demo isn't available." }, { status: 404 });
   }

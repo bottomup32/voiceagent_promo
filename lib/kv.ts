@@ -186,6 +186,25 @@ export function redisStore(config: RedisConfig): Store {
   };
 }
 
+export class StoreConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StoreConfigError";
+  }
+}
+
+/**
+ * A serverless host has no writable disk, so falling back to files there looks
+ * like a crash at the first write. Say so before anything tries.
+ */
+export function assertWritableStore(): void {
+  if (process.env.VERCEL && !redisConfig()) {
+    throw new StoreConfigError(
+      "This deployment has no shared store, so nothing can be saved. Add a Redis-compatible store and set KV_REST_API_URL and KV_REST_API_TOKEN.",
+    );
+  }
+}
+
 let cached: Store | null = null;
 
 export function getStore(): Store {

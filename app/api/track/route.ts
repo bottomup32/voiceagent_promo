@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
+import { assertWritableStore } from "@/lib/kv";
 import { appendEvent, hashIp } from "@/lib/calls";
 import { getCustomer } from "@/lib/store";
 
@@ -21,13 +23,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown customer." }, { status: 404 });
   }
 
-  const forwarded = request.headers.get("x-forwarded-for");
-  await appendEvent({
-    type: "page_view",
-    customerId: customer.id,
-    at: new Date().toISOString(),
-    ipHash: hashIp(forwarded?.split(",")[0]?.trim() || "local"),
-  });
+  try {
+    assertWritableStore();
+    const forwarded = request.headers.get("x-forwarded-for");
+    await appendEvent({
+      type: "page_view",
+      customerId: customer.id,
+      at: new Date().toISOString(),
+      ipHash: hashIp(forwarded?.split(",")[0]?.trim() || "local"),
+    });
+  } catch (error) {
+    return jsonError(error);
+  }
 
   return NextResponse.json({ ok: true });
 }

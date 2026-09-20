@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readJson } from "@/lib/http";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CustomerTable } from "@/components/admin/CustomerTable";
@@ -10,13 +11,19 @@ import type { CustomerWithStats } from "@/lib/types";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerWithStats[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
-    const response = await fetch("/api/admin/customers", { cache: "no-store" });
-    if (!response.ok) return;
-    const data = (await response.json()) as { customers: CustomerWithStats[] };
-    setCustomers(data.customers);
+    try {
+      const response = await fetch("/api/admin/customers", { cache: "no-store" });
+      const data = await readJson<{ customers: CustomerWithStats[] }>(response);
+      setCustomers(data.customers);
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not load customers.");
+      setCustomers([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -51,6 +58,11 @@ export default function CustomersPage() {
         subtitle="Each customer gets their own demo link."
         actions={<NewCustomerDialog onCreated={load} />}
       />
+      {error ? (
+        <div className="bg-destructive/10 ta-label-1 text-destructive rounded-lg p-3">
+          {error}
+        </div>
+      ) : null}
       <Card className="rounded-xl border shadow-none">
         <CardContent className="p-4 md:p-6">
           {customers === null ? (

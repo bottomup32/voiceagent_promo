@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
 import { listCustomers } from "@/lib/store";
 import { listAllCalls, readEvents } from "@/lib/calls";
 import {
@@ -15,11 +16,16 @@ export async function GET(request: Request) {
   const days = Number(new URL(request.url).searchParams.get("days") ?? 30);
   const window = [7, 30, 90].includes(days) ? days : 30;
 
-  const [customers, calls, events] = await Promise.all([
-    listCustomers(),
-    listAllCalls(),
-    readEvents(),
-  ]);
+  let customers, calls, events;
+  try {
+    [customers, calls, events] = await Promise.all([
+      listCustomers(),
+      listAllCalls(),
+      readEvents(),
+    ]);
+  } catch (error) {
+    return jsonError(error);
+  }
 
   const stats = statsByCustomer(calls, events);
   const kpis = computeKpis(

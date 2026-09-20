@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
+import { assertWritableStore } from "@/lib/kv";
 import { deleteCustomer, getCustomer, saveCustomer } from "@/lib/store";
 import { listCalls, readEvents } from "@/lib/calls";
 import { computeStats } from "@/lib/analytics";
@@ -16,7 +18,12 @@ export async function GET(_request: Request, { params }: Params) {
   if (!customer) {
     return NextResponse.json({ error: "Customer not found." }, { status: 404 });
   }
-  const [calls, events] = await Promise.all([listCalls(id), readEvents()]);
+  let calls, events;
+  try {
+    [calls, events] = await Promise.all([listCalls(id), readEvents()]);
+  } catch (error) {
+    return jsonError(error);
+  }
   const stats = computeStats(
     calls,
     events.filter((event) => event.customerId === id),
@@ -100,13 +107,23 @@ export async function PATCH(request: Request, { params }: Params) {
     };
   }
 
-  await saveCustomer(next);
+  try {
+    assertWritableStore();
+    await saveCustomer(next);
+  } catch (error) {
+    return jsonError(error);
+  }
   return NextResponse.json({ customer: next });
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
   const { id } = await params;
-  const removed = await deleteCustomer(id);
+  let removed = false;
+  try {
+    removed = await deleteCustomer(id);
+  } catch (error) {
+    return jsonError(error);
+  }
   if (!removed) {
     return NextResponse.json({ error: "Customer not found." }, { status: 404 });
   }

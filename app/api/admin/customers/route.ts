@@ -3,6 +3,8 @@ import { nanoid } from "nanoid";
 import { getCustomer, listCustomers, saveCustomer } from "@/lib/store";
 import { listAllCalls, readEvents } from "@/lib/calls";
 import { emptyStats, statsByCustomer } from "@/lib/analytics";
+import { assertWritableStore } from "@/lib/kv";
+import { jsonError } from "@/lib/api";
 import { isMapsUrl } from "@/lib/maps";
 import { emptyProfile, researchBusiness } from "@/lib/research";
 import { buildPrompts } from "@/lib/prompt";
@@ -15,20 +17,30 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function GET() {
-  const [customers, calls, events] = await Promise.all([
-    listCustomers(),
-    listAllCalls(),
-    readEvents(),
-  ]);
-  const stats = statsByCustomer(calls, events);
-  const withStats: CustomerWithStats[] = customers.map((customer) => ({
-    ...customer,
-    stats: stats[customer.id] ?? emptyStats(),
-  }));
-  return NextResponse.json({ customers: withStats });
+  try {
+    const [customers, calls, events] = await Promise.all([
+      listCustomers(),
+      listAllCalls(),
+      readEvents(),
+    ]);
+    const stats = statsByCustomer(calls, events);
+    const withStats: CustomerWithStats[] = customers.map((customer) => ({
+      ...customer,
+      stats: stats[customer.id] ?? emptyStats(),
+    }));
+    return NextResponse.json({ customers: withStats });
+  } catch (error) {
+    return jsonError(error);
+  }
 }
 
 export async function POST(request: Request) {
+  try {
+    assertWritableStore();
+  } catch (error) {
+    return jsonError(error);
+  }
+
   let body: {
     businessName?: string;
     websiteUrl?: string;
@@ -95,7 +107,11 @@ export async function POST(request: Request) {
     updatedAt: now,
   };
 
-  await saveCustomer(customer);
+  try {
+    await saveCustomer(customer);
+  } catch (error) {
+    return jsonError(error);
+  }
 
   // Research runs after the response so the table can show "Researching".
   // `after` is what keeps a serverless function alive for that work; locally

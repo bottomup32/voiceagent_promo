@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
 import { nanoid } from "nanoid";
 import { getCustomer } from "@/lib/store";
 import { hashIp, saveCall } from "@/lib/calls";
@@ -47,7 +48,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const customer = await getCustomer(customerId);
+  let customer;
+  try {
+    customer = await getCustomer(customerId);
+  } catch (error) {
+    return jsonError(error);
+  }
   if (!customer) {
     return NextResponse.json({ error: "This demo isn't available." }, { status: 404 });
   }
