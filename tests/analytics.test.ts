@@ -16,6 +16,7 @@ import {
   formatDuration,
   statsByCustomer,
 } from "../lib/analytics";
+import { parseLiveMember } from "../lib/calls";
 import type { CallLog, CustomerStats, TrackEvent } from "../lib/types";
 
 const NOW = new Date("2026-09-19T12:00:00.000Z").getTime();
@@ -488,5 +489,31 @@ describe("several people on one demo at once", () => {
   it("reports who is on the line, so the session route can cap it", () => {
     const calls = [live("a", 10), live("b", 10), live("c", 10, { isTest: true })];
     expect(inFlightCalls(calls, now).map((call) => call.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("the live session index", () => {
+  const now = Date.parse("2026-09-20T12:00:00.000Z");
+  const seat = (secondsAgo: number) =>
+    `cust123456789|call98765432|${now - secondsAgo * 1000}`;
+
+  it("keeps a seat for a call that is still going", () => {
+    expect(parseLiveMember(seat(120), now)).toEqual({
+      customerId: "cust123456789",
+      callId: "call98765432",
+      startedAtMs: now - 120_000,
+    });
+  });
+
+  // A browser that was closed mid-call never reports an end. Without this the
+  // seat is held forever and the demo lines fill up with nobody on them.
+  it("gives back a seat whose call went quiet long ago", () => {
+    expect(parseLiveMember(seat(20 * 60), now)).toBeNull();
+  });
+
+  it("gives back a seat it cannot read", () => {
+    expect(parseLiveMember("nonsense", now)).toBeNull();
+    expect(parseLiveMember("cust|call|notanumber", now)).toBeNull();
+    expect(parseLiveMember("cust|call|", now)).toBeNull();
   });
 });

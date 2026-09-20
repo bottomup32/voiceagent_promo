@@ -169,8 +169,14 @@ used for the per-IP rate limit on `/api/session`; it is simply never written
 down.
 
 Several people can be on one demo at once, and gpt-live-1 is rate limited by
-**concurrent sessions across the whole account** (25 on tier 1), so one busy
-demo must not spend what the others need. `/api/session` writes the call record
+**concurrent sessions per OpenAI organisation** (25 on tier 1, 50 on tier 2).
+Extra API keys share that pool rather than adding to it — limits are set at the
+organisation and project level, not per key — so the only ways up are a higher
+tier or a separate organisation. Two ceilings guard it: `LIVE_SESSION_LIMIT`
+for the deployment, counted from a `live` set index that carries each call's
+start time in the member so a browser closed mid-call stops holding a seat
+without anyone reading its record, and `CONCURRENT_PER_CUSTOMER` so one busy
+demo cannot spend what the others need. `/api/session` writes the call record
 *before* asking OpenAI for a session, then looks again and stands down if it is
 not among the oldest `CONCURRENT_PER_CUSTOMER` reservations — checking first and
 writing second left a gap in which every simultaneous caller read an empty demo.

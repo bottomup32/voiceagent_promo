@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { assertWritableStore } from "@/lib/kv";
-import { findCall, saveCall } from "@/lib/calls";
+import { clearLive, findCall, saveCall } from "@/lib/calls";
 import type { CallStatus, TranscriptEntry } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -57,6 +57,9 @@ export async function POST(request: Request, { params }: Params) {
       turns: transcript.length,
       transcript,
     });
+    // The line is free again. Hand the seat back before someone waits for the
+    // stale window to expire.
+    await clearLive(call);
   } catch (error) {
     return jsonError(error);
   }

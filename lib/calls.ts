@@ -1,7 +1,9 @@
 import { getStore } from "./kv";
 import type { CallLog, TrackEvent } from "./types";
 
-export { STALE_CALL_MS } from "./analytics";
+import { STALE_CALL_MS } from "./analytics";
+
+export { STALE_CALL_MS };
 
 // Page views used to go into one global list, read in full on every admin
 // request. They are per customer now so a busy prospect cannot slow down the
@@ -20,9 +22,71 @@ export async function saveCall(call: CallLog): Promise<CallLog> {
   return call;
 }
 
+/**
+ * An index of the calls in progress across every demo, so one read answers
+ * "how many sessions is this deployment holding open right now". gpt-live-1 is
+ * rate limited by concurrent sessions per organisation — extra API keys share
+ * the same pool rather than adding to it — so the count has to be account-wide,
+ * not per customer.
+ *
+ * The start time is in the member itself. A call that never reported an end can
+ * then be recognised as stale and dropped without reading its record, which
+ * matters because this runs on the path of every dial.
+ */
+const LIVE = "live";
+const liveMember = (customerId: string, callId: string, startedAt: string) =>
+  `${customerId}|${callId}|${new Date(startedAt).getTime()}`;
+
+export type LiveSession = { customerId: string; callId: string; startedAtMs: number };
+
+/**
+ * A seat in the index, or null when it should be given back: either the entry
+ * is malformed, or the call it stands for went quiet long enough ago that it is
+ * never going to report an end.
+ */
+export function parseLiveMember(member: string, now = Date.now()): LiveSession | null {
+  const [customerId, callId, startedAtMs] = member.split("|");
+  const startedAt = Number(startedAtMs);
+  if (!customerId || !callId || !startedAtMs || !Number.isFinite(startedAt)) return null;
+  if (now - startedAt > STALE_CALL_MS) return null;
+  return { customerId, callId, startedAtMs: startedAt };
+}
+
+export async function listLiveSessions(now = Date.now()): Promise<LiveSession[]> {
+  const store = getStore();
+  const fresh: LiveSession[] = [];
+
+  for (const member of await store.members(LIVE)) {
+    const seat = parseLiveMember(member, now);
+    if (!seat) {
+      await store.removeMember(LIVE, member);
+      continue;
+    }
+    fresh.push(seat);
+  }
+
+  return fresh;
+}
+
+export async function markLive(call: CallLog): Promise<void> {
+  await getStore().addMember(
+    LIVE,
+    liveMember(call.customerId, call.id, call.startedAt),
+  );
+}
+
+export async function clearLive(call: CallLog): Promise<void> {
+  await getStore().removeMember(
+    LIVE,
+    liveMember(call.customerId, call.id, call.startedAt),
+  );
+}
+
 /** Undo a reservation when the call never actually started. */
 export async function deleteCall(customerId: string, callId: string): Promise<void> {
   const store = getStore();
+  const call = await store.getJson<CallLog>(callKey(customerId, callId));
+  if (call) await clearLive(call);
   await store.del(callKey(customerId, callId));
   await store.removeMember(callIndex(customerId), callId);
 }

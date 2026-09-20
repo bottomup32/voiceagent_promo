@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { nanoid } from "nanoid";
 import { getCustomer } from "@/lib/store";
-import { deleteCall, listCalls, saveCall } from "@/lib/calls";
+import {
+  deleteCall,
+  listCalls,
+  listLiveSessions,
+  markLive,
+  saveCall,
+} from "@/lib/calls";
 import { visitorId } from "@/lib/visitor";
 import { demoAllowance, inFlightCalls } from "@/lib/analytics";
 import { DEFAULT_DEMO_MINUTES } from "@/lib/types";
@@ -17,12 +23,26 @@ const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 60_000;
 
 /**
- * How many people may be on one demo at the same moment. Several colleagues
- * trying it together is the point, but gpt-live-1 is rate limited by concurrent
- * sessions across the whole account — 25 on tier 1 — so one busy demo must not
- * be able to spend every session the other demos need.
+ * Two ceilings, because two different things can go wrong.
+ *
+ * gpt-live-1 is rate limited by concurrent sessions per organisation — 25 on
+ * tier 1, 50 on tier 2 — and extra API keys share that pool rather than adding
+ * to it, so the only ways up are a higher tier or a separate organisation.
+ * LIVE_SESSION_LIMIT is what this deployment believes it may hold open, and
+ * keeping it a little under the real figure means a caller hears "busy, try
+ * again" from us instead of a rate limit error from OpenAI.
+ *
+ * The per-demo ceiling is the fairness half: several colleagues trying one
+ * demo together is the whole point, but one busy demo must not spend every
+ * session the other demos need.
  */
-const CONCURRENT_PER_CUSTOMER = 4;
+const CONCURRENT_PER_CUSTOMER = Number(process.env.CONCURRENT_PER_CUSTOMER || 4);
+const LIVE_SESSION_LIMIT = Number(process.env.LIVE_SESSION_LIMIT || 20);
+
+const BUSY_DEMO =
+  "This demo already has as many people on it as it can take at once. Try again in a moment.";
+const BUSY_EVERYWHERE =
+  "All the demo lines are busy right now. Try again in a moment.";
 
 /**
  * A per-instance memory of who has dialled recently. Serverless runs many
@@ -118,13 +138,7 @@ export async function POST(request: Request) {
       return jsonError(error);
     }
     if (live >= CONCURRENT_PER_CUSTOMER) {
-      return NextResponse.json(
-        {
-          error:
-            "This demo already has as many people on it as it can take at once. Try again in a moment.",
-        },
-        { status: 429 },
-      );
+      return NextResponse.json({ error: BUSY_DEMO }, { status: 429 });
     }
     if (allowance.exhausted) {
       return NextResponse.json(
@@ -156,6 +170,7 @@ export async function POST(request: Request) {
   };
   try {
     await saveCall(call);
+    if (!isTest) await markLive(call);
   } catch (error) {
     return jsonError(error);
   }
@@ -173,13 +188,19 @@ export async function POST(request: Request) {
       const place = inFlight.findIndex((entry) => entry.id === call.id);
       if (place >= CONCURRENT_PER_CUSTOMER) {
         await deleteCall(customer.id, call.id).catch(() => undefined);
-        return NextResponse.json(
-          {
-            error:
-              "This demo already has as many people on it as it can take at once. Try again in a moment.",
-          },
-          { status: 429 },
-        );
+        return NextResponse.json({ error: BUSY_DEMO }, { status: 429 });
+      }
+
+      // And the same again for the account as a whole, so we run out of demo
+      // lines politely rather than being cut off by OpenAI.
+      const everywhere = await listLiveSessions();
+      everywhere.sort(
+        (a, b) => a.startedAtMs - b.startedAtMs || a.callId.localeCompare(b.callId),
+      );
+      const seat = everywhere.findIndex((entry) => entry.callId === call.id);
+      if (seat >= LIVE_SESSION_LIMIT) {
+        await deleteCall(customer.id, call.id).catch(() => undefined);
+        return NextResponse.json({ error: BUSY_EVERYWHERE }, { status: 429 });
       }
     } catch (error) {
       await deleteCall(customer.id, call.id).catch(() => undefined);
