@@ -5,7 +5,7 @@ A promo app for the call voice agent. A target business gets a private link, ope
 Two views:
 
 - **Admin** at `/admin`, password protected. Add a customer by name, watch the research run, edit the collected data and the prompts, run a test call, copy the customer link or the outreach email, and see who opened their link and how long they talked.
-- **Customer** at `/c/<id>`, public and unlisted. The business name, a call button, an end button, and a live transcript. Nothing else.
+- **Customer** at `/c/<id>`, public and unlisted. The business name, a call button, an end button, a live transcript, and a read-only **How it was built** panel showing the collected knowledge, the generated prompts, and the sources they came from. The page has no inputs and every write endpoint is behind the admin cookie, so a customer can see everything and change nothing.
 
 ## Stack
 

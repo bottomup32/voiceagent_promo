@@ -3,8 +3,16 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ExternalLink, FileSearch } from "lucide-react";
-import { EmptyState } from "@/components/admin/shared";
 import type { ResearchSource } from "@/lib/types";
+
+function Empty({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+      <FileSearch className="size-6 text-muted-foreground" aria-hidden />
+      <p className="ta-body-2 text-muted-foreground">{message}</p>
+    </div>
+  );
+}
 
 type Props = {
   dossier: string;
@@ -14,12 +22,7 @@ type Props = {
 
 export function SourcesPanel({ dossier, sources, researchedAt }: Props) {
   if (!dossier && sources.length === 0) {
-    return (
-      <EmptyState
-        icon={<FileSearch className="size-6" />}
-        message="No research yet. Run research to collect the business data."
-      />
-    );
+    return <Empty message="No research yet. Run research to collect the business data." />;
   }
 
   return (

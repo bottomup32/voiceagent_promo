@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCustomer } from "@/lib/store";
 import { resolveCallSound } from "@/lib/call-audio";
+import { LIVE_VOICE_OPTIONS } from "@/lib/types";
 import { DemoCall } from "./demo-call";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,10 @@ export default async function CustomerDemoPage({ params }: Props) {
     notFound();
   }
 
+  const voice = LIVE_VOICE_OPTIONS.find((option) => option.id === customer.voice);
+
+  // Only what the business itself should see. Contact details, labels, notes,
+  // and call history stay in the admin area.
   return (
     <DemoCall
       customerId={customer.id}
@@ -35,6 +40,16 @@ export default async function CustomerDemoPage({ params }: Props) {
       phone={customer.profile.phone}
       agentName={customer.agentName}
       callSound={resolveCallSound(customer.callSound)}
+      voiceLabel={voice ? `${voice.label}, ${voice.accent}` : customer.voice}
+      profile={customer.profile}
+      prompts={{
+        live: customer.prompts.live,
+        backend: customer.prompts.backend,
+        greeting: customer.prompts.greeting,
+      }}
+      dossier={customer.dossier}
+      sources={customer.sources}
+      researchedAt={customer.researchedAt}
     />
   );
 }

@@ -13,7 +13,7 @@ import { KnowledgeEditor } from "@/components/admin/KnowledgeEditor";
 import { PromptEditor } from "@/components/admin/PromptEditor";
 import { ResearchInputsPanel } from "@/components/admin/ResearchInputsPanel";
 import { SharePanel } from "@/components/admin/SharePanel";
-import { SourcesPanel } from "@/components/admin/SourcesPanel";
+import { SourcesPanel } from "@/components/research/SourcesPanel";
 import { PageHeader, StatCard, StatusBadge, statusKind } from "@/components/admin/shared";
 import { CallPanel } from "@/components/call/CallPanel";
 import { Transcript } from "@/components/call/Transcript";
