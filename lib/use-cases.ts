@@ -1,5 +1,5 @@
 /**
- * The menu of things this voice agent can do, as the public demo page shows it.
+ * The menu of things this voice agent can do, as /c/[id]/scenarios shows it.
  *
  * Only two of these are true of the demo itself — it answers the phone, and it
  * answers in the caller's language. The other seven are the pitch: the same
@@ -169,6 +169,12 @@ function nouns(bucket: Bucket): BusinessNouns {
   };
 }
 
+/**
+ * How many scenarios the catalog holds, for copy that counts them out loud.
+ * A test keeps it honest against buildUseCases().
+ */
+export const SCENARIO_COUNT = 9;
+
 export type UseCaseOptions = {
   agentName: string;
   businessName: string;
@@ -199,8 +205,8 @@ export function buildUseCases({
       tagline: "Hours, address, services, prices — no hold music.",
       body:
         `${agentName} answers on the first ring and knows what ${businessName} ` +
-        "actually does, from the same public research you can read further down " +
-        "this page. No phone tree, no queue, no caller hanging up at ring six.",
+        "actually does, from the same public research the demo page shows you. " +
+        "No phone tree, no queue, no caller hanging up at ring six.",
       example: [
         { speaker: "caller", text: "Hi — are you open on Sunday?" },
         {
@@ -216,7 +222,7 @@ export function buildUseCases({
       title: "Answers in the caller's language",
       tagline: "Switches mid-sentence and stays there.",
       body:
-        "Try it on the call above. Start in English, switch to Spanish or " +
+        "Try it on the demo call. Start in English, switch to Spanish or " +
         "Korean, and the answer comes back in the language you used — same " +
         "receptionist, same knowledge, no separate line to staff.",
       example: [

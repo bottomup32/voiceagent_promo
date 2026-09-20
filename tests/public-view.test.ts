@@ -3,6 +3,7 @@ import type { Customer } from "../lib/types";
 import { DEFAULT_CALL_SOUND, DEFAULT_DEMO_MINUTES } from "../lib/types";
 import { demoAllowance } from "../lib/analytics";
 import { customerLink } from "../lib/share";
+import { mailtoFor } from "../lib/links";
 
 /**
  * The demo page is public, so it must carry the business's own data and
@@ -29,6 +30,20 @@ function publicProps(customer: Customer) {
     researchedAt: customer.researchedAt,
     demo: demoAllowance([], customer.demoMinutes ?? DEFAULT_DEMO_MINUTES),
     demoUrl: customerLink(customer.id),
+  };
+}
+
+/**
+ * The scenarios page at /c/[id]/scenarios is public too, and it asks for less
+ * than the demo page: no call state, no research, no prompts. This mirrors
+ * what app/c/[id]/scenarios/page.tsx reads off the customer.
+ */
+function scenarioProps(customer: Customer) {
+  return {
+    name: customer.profile.name,
+    category: customer.profile.category,
+    agentName: customer.agentName,
+    mailto: mailtoFor(customer.profile.name, customerLink(customer.id)),
   };
 }
 
@@ -110,5 +125,34 @@ describe("public demo props", () => {
 
   it("does not expose the prompts' edited flag, which is an operator detail", () => {
     expect(props.prompts).not.toHaveProperty("edited");
+  });
+});
+
+describe("public scenarios props", () => {
+  const props = scenarioProps(customer);
+  const serialized = JSON.stringify(props);
+
+  it("carries the business and its receptionist", () => {
+    expect(props.name).toBe("Factoria Family Dentistry");
+    expect(props.agentName).toBe("Alex");
+    expect(props.mailto).toContain(encodeURIComponent(customer.id));
+  });
+
+  it("leaves out the operator's own notes about the business", () => {
+    for (const secret of [
+      customer.contactEmail!,
+      customer.contactName!,
+      customer.notes!,
+      customer.label!,
+      customer.researchNotes!,
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+  });
+
+  it("carries no field the page did not ask for", () => {
+    expect(Object.keys(props).sort()).toEqual(
+      ["agentName", "category", "mailto", "name"].sort(),
+    );
   });
 });

@@ -1,21 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUpRight, MapPin, Mail, Phone, Tag } from "lucide-react";
+import { MapPin, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { CallPanel } from "@/components/call/CallPanel";
 import { Transcript } from "@/components/call/Transcript";
 import { BusinessKnowledge } from "@/components/public/BusinessKnowledge";
 import { PromptView } from "@/components/public/PromptView";
-import { UseCaseRail } from "@/components/public/UseCaseRail";
+import { ContactButtons } from "@/components/public/ContactButtons";
+import { ScenarioTeaser } from "@/components/public/ScenarioTeaser";
 import { SourcesPanel } from "@/components/research/SourcesPanel";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VersionBadge } from "@/components/VersionBadge";
 import { useLiveCall } from "@/hooks/useLiveCall";
 import { formatDuration, type DemoAllowance } from "@/lib/analytics";
-import { CONTACT_URL, PRICING_URL, mailtoFor } from "@/lib/links";
+import { CONTACT_URL, mailtoFor } from "@/lib/links";
+import { SCENARIO_COUNT } from "@/lib/use-cases";
 import type {
   BusinessProfile,
   CallSound,
@@ -40,29 +41,6 @@ type DemoCallProps = {
   demo: DemoAllowance;
   demoUrl: string;
 };
-
-function ContactButtons({ mailto }: { mailto: string }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Button nativeButton={false} render={<a href={CONTACT_URL} target="_blank" rel="noreferrer" />}>
-        Talk to us
-        <ArrowUpRight className="size-4" />
-      </Button>
-      <Button
-        variant="outline"
-        nativeButton={false}
-        render={<a href={PRICING_URL} target="_blank" rel="noreferrer" />}
-      >
-        <Tag className="size-4" />
-        Pricing
-      </Button>
-      <Button variant="ghost" nativeButton={false} render={<a href={mailto} />}>
-        <Mail className="size-4" />
-        Email us
-      </Button>
-    </div>
-  );
-}
 
 export function DemoCall({
   customerId,
@@ -134,189 +112,172 @@ export function DemoCall({
   const exhausted = allowance.exhausted;
   const remaining = Math.max(0, allowance.remainingSec - (call.usageSec || 0));
 
-  // The rail is one component at two placements: a sticky column beside the
-  // demo on a wide screen, and a card in the stack below it on a narrow one.
-  // Only ever one of them is visible, so the duplicate open-state is inert.
-  const rail = (
-    <UseCaseRail
-      agentName={agentName}
-      businessName={name}
-      category={category}
-    />
-  );
-
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:grid lg:grid-cols-[19rem_1fr] lg:items-start lg:gap-8">
-      <aside className="sticky top-8 hidden max-h-[calc(100dvh-4rem)] overflow-y-auto lg:block">
-        {rail}
-      </aside>
+    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-6 px-4 py-8">
+      <header className="flex flex-col gap-1">
+        <span className="ta-headline-2">TecAce</span>
+        <span className="ta-caption-1 text-muted-foreground">
+          AI voice agent demo
+        </span>
+      </header>
 
-      <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-6">
-        <header className="flex flex-col gap-1">
-          <span className="ta-headline-2">TecAce</span>
-          <span className="ta-caption-1 text-muted-foreground">
-            AI voice agent demo
-          </span>
-        </header>
+      <Card className="border-primary/30 bg-primary/5 rounded-xl border shadow-none">
+        <CardContent className="space-y-3 p-4 md:p-6">
+          <p className="ta-headline-2">This is a demo, not your phone line.</p>
+          <p className="ta-body-2-reading text-muted-foreground">
+            Nobody at {name} set this up. We researched the business from public
+            sources and built a receptionist from what we found, so you can hear
+            what your callers would hear. When you want it answering your real
+            number, that part is a conversation with us.
+          </p>
+          <ContactButtons mailto={mailto} />
+        </CardContent>
+      </Card>
 
-        <Card className="border-primary/30 bg-primary/5 rounded-xl border shadow-none">
-          <CardContent className="space-y-3 p-4 md:p-6">
-            <p className="ta-headline-2">This is a demo, not your phone line.</p>
-            <p className="ta-body-2-reading text-muted-foreground">
-              Nobody at {name} set this up. We researched the business from public
-              sources and built a receptionist from what we found, so you can hear
-              what your callers would hear. When you want it answering your real
-              number, that part is a conversation with us.
-            </p>
-            <ContactButtons mailto={mailto} />
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border shadow-none">
-          <CardHeader className="gap-2 text-center">
-            <CardTitle className="ta-title-3">{name}</CardTitle>
-            {category ? (
-              <p className="ta-label-1 text-muted-foreground">{category}</p>
+      <Card className="rounded-xl border shadow-none">
+        <CardHeader className="gap-2 text-center">
+          <CardTitle className="ta-title-3">{name}</CardTitle>
+          {category ? (
+            <p className="ta-label-1 text-muted-foreground">{category}</p>
+          ) : null}
+          <div className="flex flex-col items-center gap-1 pt-1">
+            {address ? (
+              <span className="ta-caption-1 flex items-center gap-1.5 text-muted-foreground">
+                <MapPin className="size-3.5" aria-hidden />
+                {address}
+              </span>
             ) : null}
-            <div className="flex flex-col items-center gap-1 pt-1">
-              {address ? (
-                <span className="ta-caption-1 flex items-center gap-1.5 text-muted-foreground">
-                  <MapPin className="size-3.5" aria-hidden />
-                  {address}
-                </span>
-              ) : null}
-              {phone ? (
-                <span className="ta-caption-1 flex items-center gap-1.5 text-muted-foreground">
-                  <Phone className="size-3.5" aria-hidden />
-                  {phone}
-                </span>
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 pb-8">
-            {exhausted ? null : (
-              <CallPanel
-                state={call.state}
-                elapsedSec={call.elapsedSec}
-                usageSec={call.usageSec}
-                muted={call.muted}
-                error={call.error}
-                onDial={call.dial}
-                onHangup={call.hangup}
-                onToggleMute={call.toggleMute}
-                onReset={call.reset}
-              />
-            )}
-
-            {exhausted ? (
-              <div className="border-primary/30 bg-primary/5 space-y-3 rounded-lg border p-4 text-center">
-                <p className="ta-label-1">
-                  That is the {Math.round(allowance.allowedSec / 60)} minutes this
-                  demo comes with.
-                </p>
-                <p className="ta-caption-1 text-muted-foreground">
-                  Ask us for more and we will open it back up — or skip ahead and
-                  talk about putting {agentName} on your real line.
-                </p>
-                <div className="flex justify-center">
-                  <ContactButtons mailto={mailto} />
-                </div>
-              </div>
-            ) : (
-              <p className="ta-caption-1 text-muted-foreground text-center">
-                {formatDuration(remaining)} of demo time left, of{" "}
-                {Math.round(allowance.allowedSec / 60)} minutes. Need more? Just ask
-                us.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="flex min-h-72 flex-col overflow-hidden rounded-xl border shadow-none">
-          <CardHeader className="pb-0">
-            <CardTitle className="ta-headline-2">Transcript</CardTitle>
-          </CardHeader>
-          <CardContent className="max-h-96 flex-1 overflow-y-auto p-0">
-            <Transcript
-              entries={call.transcript}
-              thinking={call.thinking}
-              emptyMessage={
-                exhausted
-                  ? `The demo time for ${name} is used up. Ask us for more.`
-                  : `Press call to talk to ${agentName} at ${name}.`
-              }
+            {phone ? (
+              <span className="ta-caption-1 flex items-center gap-1.5 text-muted-foreground">
+                <Phone className="size-3.5" aria-hidden />
+                {phone}
+              </span>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 pb-8">
+          {exhausted ? null : (
+            <CallPanel
+              state={call.state}
+              elapsedSec={call.elapsedSec}
+              usageSec={call.usageSec}
+              muted={call.muted}
+              error={call.error}
+              onDial={call.dial}
+              onHangup={call.hangup}
+              onToggleMute={call.toggleMute}
+              onReset={call.reset}
             />
-          </CardContent>
-        </Card>
+          )}
 
-        <div className="lg:hidden">{rail}</div>
-
-        <Card className="rounded-xl border shadow-none">
-          <CardHeader>
-            <CardTitle className="ta-headline-2">How it was built</CardTitle>
-            <p className="ta-caption-1 text-muted-foreground">
-              Nobody typed any of this in. We researched {name} from public sources,
-              turned what we found into a profile, and generated the instructions the
-              receptionist runs on. Everything here is yours to correct before launch.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="knowledge">
-              <TabsList variant="line" className="w-full justify-start">
-                <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
-                <TabsTrigger value="prompt">Prompt</TabsTrigger>
-                <TabsTrigger value="sources">Sources</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="knowledge" className="pt-4">
-                <BusinessKnowledge profile={profile} onEditAttempt={askForChange} />
-              </TabsContent>
-
-              <TabsContent value="prompt" className="pt-4">
-                <PromptView
-                  prompts={prompts}
-                  voiceLabel={voiceLabel}
-                  agentName={agentName}
-                />
-              </TabsContent>
-
-              <TabsContent value="sources" className="pt-4">
-                <SourcesPanel
-                  dossier={dossier}
-                  sources={sources}
-                  researchedAt={researchedAt}
-                />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border shadow-none">
-          <CardContent className="space-y-3 p-4 text-center md:p-6">
-            <p className="ta-headline-2">Want this answering your real calls?</p>
-            <p className="ta-body-2-reading text-muted-foreground">
-              Same receptionist, your number, your hours, your booking rules — and
-              the knowledge above becomes yours to edit. The reservations,
-              confirmation calls, voicemail and transfers in the menu are the same
-              system, turned on.
-            </p>
-            <div className="flex justify-center">
-              <ContactButtons mailto={mailto} />
+          {exhausted ? (
+            <div className="border-primary/30 bg-primary/5 space-y-3 rounded-lg border p-4 text-center">
+              <p className="ta-label-1">
+                That is the {Math.round(allowance.allowedSec / 60)} minutes this
+                demo comes with.
+              </p>
+              <p className="ta-caption-1 text-muted-foreground">
+                Ask us for more and we will open it back up — or skip ahead and
+                talk about putting {agentName} on your real line.
+              </p>
+              <div className="flex justify-center">
+                <ContactButtons mailto={mailto} />
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <p className="ta-caption-1 text-muted-foreground text-center">
+              {formatDuration(remaining)} of demo time left, of{" "}
+              {Math.round(allowance.allowedSec / 60)} minutes. Need more? Just ask
+              us.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
-        <footer className="flex flex-col items-center gap-1 pb-4">
-          <p className="ta-caption-1 text-muted-foreground text-center">
-            A TecAce demo. The business shown here has not endorsed it.
+      <Card className="flex min-h-72 flex-col overflow-hidden rounded-xl border shadow-none">
+        <CardHeader className="pb-0">
+          <CardTitle className="ta-headline-2">Transcript</CardTitle>
+        </CardHeader>
+        <CardContent className="max-h-96 flex-1 overflow-y-auto p-0">
+          <Transcript
+            entries={call.transcript}
+            thinking={call.thinking}
+            emptyMessage={
+              exhausted
+                ? `The demo time for ${name} is used up. Ask us for more.`
+                : `Press call to talk to ${agentName} at ${name}.`
+            }
+          />
+        </CardContent>
+      </Card>
+
+      <ScenarioTeaser customerId={customerId} count={SCENARIO_COUNT} />
+
+      <Card className="rounded-xl border shadow-none">
+        <CardHeader>
+          <CardTitle className="ta-headline-2">How it was built</CardTitle>
+          <p className="ta-caption-1 text-muted-foreground">
+            Nobody typed any of this in. We researched {name} from public sources,
+            turned what we found into a profile, and generated the instructions the
+            receptionist runs on. Everything here is yours to correct before launch.
           </p>
-          <p className="ta-caption-2 text-muted-foreground max-w-md text-center">
-            So we can see how the demo went, this page counts visits and keeps
-            what was said on the call. Nothing is shared outside TecAce.
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="knowledge">
+            <TabsList variant="line" className="w-full justify-start">
+              <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+              <TabsTrigger value="prompt">Prompt</TabsTrigger>
+              <TabsTrigger value="sources">Sources</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="knowledge" className="pt-4">
+              <BusinessKnowledge profile={profile} onEditAttempt={askForChange} />
+            </TabsContent>
+
+            <TabsContent value="prompt" className="pt-4">
+              <PromptView
+                prompts={prompts}
+                voiceLabel={voiceLabel}
+                agentName={agentName}
+              />
+            </TabsContent>
+
+            <TabsContent value="sources" className="pt-4">
+              <SourcesPanel
+                dossier={dossier}
+                sources={sources}
+                researchedAt={researchedAt}
+              />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-xl border shadow-none">
+        <CardContent className="space-y-3 p-4 text-center md:p-6">
+          <p className="ta-headline-2">Want this answering your real calls?</p>
+          <p className="ta-body-2-reading text-muted-foreground">
+            Same receptionist, your number, your hours, your booking rules — and
+            the knowledge above becomes yours to edit. The reservations,
+            confirmation calls, voicemail and transfers are the same system,
+            turned on.
           </p>
-          <VersionBadge />
-        </footer>
-      </main>
-    </div>
+          <div className="flex justify-center">
+            <ContactButtons mailto={mailto} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <footer className="flex flex-col items-center gap-1 pb-4">
+        <p className="ta-caption-1 text-muted-foreground text-center">
+          A TecAce demo. The business shown here has not endorsed it.
+        </p>
+        <p className="ta-caption-2 text-muted-foreground max-w-md text-center">
+          So we can see how the demo went, this page counts visits and keeps
+          what was said on the call. Nothing is shared outside TecAce.
+        </p>
+        <VersionBadge />
+      </footer>
+    </main>
   );
 }

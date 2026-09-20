@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { businessNouns, buildUseCases } from "../lib/use-cases";
+import { SCENARIO_COUNT, businessNouns, buildUseCases } from "../lib/use-cases";
 
 const opts = (category?: string) => ({
   agentName: "Alex",
@@ -58,6 +58,8 @@ describe("buildUseCases", () => {
 
   it("returns the whole catalog with unique ids", () => {
     expect(cases).toHaveLength(9);
+    // The teaser and the scenarios page both say the number out loud.
+    expect(SCENARIO_COUNT).toBe(cases.length);
     expect(new Set(cases.map((useCase) => useCase.id)).size).toBe(9);
   });
 
