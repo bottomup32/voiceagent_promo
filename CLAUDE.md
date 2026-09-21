@@ -49,9 +49,16 @@ Two views, one codebase:
   until the call starts and the live transcript after. `quotedGreeting()`
   returns null when the greeting prompt quotes nothing, so an instruction is
   never shown as speech. `StickyCall` keeps the same live call one tap away once
-  the button scrolls off. `VoiceOrb` draws on a canvas from two `AnalyserNode`s
-  tapped into the call's existing Web Audio graph and reads them through a ref,
-  so React never renders a frame. `Exchange` is the one chat bubble shared by
+  the button scrolls off. `VoiceOrb` is the ribbon film from the top of
+  tecace.com (`public/voice-orb.mp4`) in a circle — `object-cover` on a square
+  is its centre crop, and nothing is redrawn or recoloured. The voice moves its
+  `playbackRate` and nothing else (`orbMode()` and `orbPlaybackRate()` in
+  `lib/voice-level.ts`), read from two `AnalyserNode`s tapped into the call's
+  existing Web Audio graph through a ref, so React never renders a frame. With
+  reduced motion the still stays up and the film is never fetched. The same
+  orb, idling, is the logo's mark (`Logo`, `BrandMark`) and the still is
+  `app/icon.png`; the sticky bar passes `mark={false}` because a live orb
+  already sits beside its wordmark. `Exchange` is the one chat bubble shared by
   the live transcript, the scenarios page and the admin call viewers.
 
   `/c/[id]/scenarios` is the rest of the menu (`lib/use-cases.ts`). Only the

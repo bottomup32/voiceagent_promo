@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { KanbanSquare, LayoutDashboard, LogOut, Users } from "lucide-react";
+import { BrandMark } from "@/components/public/Logo";
 import { VersionBadge } from "@/components/VersionBadge";
 import {
   Sidebar,
@@ -35,7 +36,8 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="px-3 py-4">
+      <SidebarHeader className="flex-row items-center gap-2 px-3 py-4 group-data-[collapsible=icon]:px-2">
+        <BrandMark size={32} />
         <span className="ta-headline-1 group-data-[collapsible=icon]:hidden">TecAce</span>
       </SidebarHeader>
       <SidebarContent>

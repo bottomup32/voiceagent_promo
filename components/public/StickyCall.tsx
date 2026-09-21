@@ -29,7 +29,7 @@ export function StickyCall({ show, name, agentName, call }: Props) {
       }`}
     >
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4">
-        <Logo className="h-5" />
+        <Logo className="h-5" mark={false} />
         <VoiceOrb state={call.state} meters={call.meters} size={28} className="max-sm:hidden" />
         <span className="ta-label-1 text-muted-foreground min-w-0 truncate">
           {name}

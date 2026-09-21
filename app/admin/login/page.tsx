@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BrandMark } from "@/components/public/Logo";
 import { readJson } from "@/lib/http";
 
 function LoginForm() {
@@ -71,7 +72,8 @@ function LoginForm() {
 
 export default function AdminLoginPage() {
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-4">
+      <BrandMark size={72} />
       <Suspense fallback={null}>
         <LoginForm />
       </Suspense>
