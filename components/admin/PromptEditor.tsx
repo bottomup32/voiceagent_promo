@@ -16,6 +16,13 @@ import { LIVE_VOICE_OPTIONS, type CallSound, type CustomerPrompts } from "@/lib/
 import { LANGUAGES, languageOf } from "@/lib/languages";
 import { Switch } from "@/components/ui/switch";
 import { resolveCallSound } from "@/lib/call-audio";
+import { AMBIENCE_LEVELS, type AmbienceLevel } from "@/lib/ambience";
+
+const AMBIENCE_LABEL: Record<AmbienceLevel, string> = {
+  off: "Silent — nothing behind the voice",
+  quiet: "Quiet office — someone talking in the next room",
+  busy: "Busy front desk — voices, typing, a phone going",
+};
 
 type Props = {
   agentName: string;
@@ -184,21 +191,36 @@ export function PromptEditor({
             aria-label="Apply the phone line filter"
           />
         </label>
-        <label className="ta-label-1 flex items-center justify-between gap-4">
-          <span>
-            Room tone
-            <span className="ta-caption-1 text-muted-foreground block">
-              Mixes quiet background noise under the call.
+        <div className="space-y-1.5">
+          <Label htmlFor="ambience" className="ta-label-1">
+            Behind the receptionist
+            <span className="ta-caption-1 text-muted-foreground block font-normal">
+              A room with people working in it. Pick one on a real call — it is
+              built to sit under the voice, so it is meant to be noticed rather
+              than listened to.
             </span>
-          </span>
-          <Switch
-            checked={sound.roomTone}
-            onCheckedChange={(checked) =>
-              onCallSoundChange({ ...sound, roomTone: checked })
+          </Label>
+          <Select
+            value={sound.ambience}
+            onValueChange={(value) =>
+              onCallSoundChange({
+                ...sound,
+                ambience: (value as AmbienceLevel) ?? sound.ambience,
+              })
             }
-            aria-label="Mix in room tone"
-          />
-        </label>
+          >
+            <SelectTrigger id="ambience" aria-label="Background ambience">
+              <SelectValue>{AMBIENCE_LABEL[sound.ambience]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {AMBIENCE_LEVELS.map((level) => (
+                <SelectItem key={level} value={level}>
+                  {AMBIENCE_LABEL[level]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {prompts.edited ? (

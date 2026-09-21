@@ -1,22 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { PHONE_BAND, ROOM_TONE, fillRoomToneBuffer, resolveCallSound } from "../lib/call-audio";
+import { PHONE_BAND, resolveCallSound } from "../lib/call-audio";
+import { fillRoomToneBuffer } from "../lib/ambience";
 import { DEFAULT_VOICE, LIVE_VOICE_OPTIONS } from "../lib/types";
 
 describe("resolveCallSound", () => {
-  it("turns both effects on when nothing is stored", () => {
-    expect(resolveCallSound(undefined)).toEqual({ phoneLine: true, roomTone: true });
-    expect(resolveCallSound(null)).toEqual({ phoneLine: true, roomTone: true });
+  it("puts a quiet office behind the voice when nothing is stored", () => {
+    expect(resolveCallSound(undefined)).toEqual({ phoneLine: true, ambience: "quiet" });
+    expect(resolveCallSound(null)).toEqual({ phoneLine: true, ambience: "quiet" });
   });
 
-  it("keeps an explicit off", () => {
-    expect(resolveCallSound({ roomTone: false })).toEqual({
-      phoneLine: true,
-      roomTone: false,
-    });
-    expect(resolveCallSound({ phoneLine: false, roomTone: false })).toEqual({
+  it("keeps the level the operator picked", () => {
+    expect(resolveCallSound({ ambience: "busy" }).ambience).toBe("busy");
+    expect(resolveCallSound({ ambience: "off" }).ambience).toBe("off");
+    expect(resolveCallSound({ phoneLine: false, ambience: "off" })).toEqual({
       phoneLine: false,
-      roomTone: false,
+      ambience: "off",
     });
+  });
+
+  it("reads an older record's room tone switch", () => {
+    // On meant a flat hiss too quiet to hear, so it lands on the quiet office
+    // rather than on nothing.
+    expect(resolveCallSound({ roomTone: true }).ambience).toBe("quiet");
+    expect(resolveCallSound({ roomTone: false }).ambience).toBe("off");
+  });
+
+  it("lets a level override the switch it replaced", () => {
+    expect(resolveCallSound({ roomTone: false, ambience: "busy" }).ambience).toBe("busy");
   });
 });
 
@@ -37,15 +47,6 @@ describe("fillRoomToneBuffer", () => {
     for (const sample of channel) {
       expect(Math.abs(sample)).toBeLessThanOrEqual(1);
     }
-  });
-
-  it("stays quiet: the tone is a floor, not a sound", () => {
-    const channel = new Float32Array(4096);
-    fillRoomToneBuffer(channel);
-    const rms = Math.sqrt(
-      channel.reduce((sum, sample) => sum + sample * sample, 0) / channel.length,
-    );
-    expect(rms * ROOM_TONE.gain).toBeLessThan(0.01);
   });
 
   it("is low-passed, so neighbouring samples track each other", () => {

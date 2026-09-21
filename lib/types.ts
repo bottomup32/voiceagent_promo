@@ -1,3 +1,5 @@
+import type { AmbienceLevel } from "./ambience";
+
 export type BusinessHour = {
   day: string;
   open: string;
@@ -262,8 +264,13 @@ export const DEFAULT_VOICE = "gleam";
 export type CallSound = {
   /** Narrow the agent audio to the telephone band. */
   phoneLine: boolean;
-  /** Mix a quiet room tone under the call. */
-  roomTone: boolean;
+  /**
+   * Retired in favour of `ambience`, still read on older records. It switched
+   * on a flat room tone so quiet nobody could hear it.
+   */
+  roomTone?: boolean;
+  /** How much of a working office is going on behind the receptionist. */
+  ambience: AmbienceLevel;
 };
 
-export const DEFAULT_CALL_SOUND: CallSound = { phoneLine: true, roomTone: true };
+export const DEFAULT_CALL_SOUND: CallSound = { phoneLine: true, ambience: "quiet" };

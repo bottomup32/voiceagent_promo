@@ -143,10 +143,32 @@ Facts that shape the code:
 - Leaving the page reports the call as abandoned through `navigator.sendBeacon`.
 
 `lib/call-audio.ts` runs playback through Web Audio so the demo sounds like a
-phone call: the voice is narrowed to the telephone band and a quiet room tone
-drifts underneath. Both are per-customer switches. The remote stream is also
-attached to a muted `<audio>` element, because Chrome will not pull frames from a
-WebRTC stream otherwise. Tuning constants live at the top of the file.
+phone call: the voice is narrowed to the telephone band, and behind it a room
+with people working in it. The remote stream is also attached to a muted
+`<audio>` element, because Chrome will not pull frames from a WebRTC stream
+otherwise.
+
+The ambience is built in `lib/ambience.ts` and is three levels per customer —
+`off`, `quiet`, `busy` — because the right one is chosen by ear on a real call.
+Voices are speech-shaped noise driven by a syllable-rate envelope, the way a
+multitalker babble masker is made; behind a wall, at this level, the ear fills
+in people. It is not a recording and does not survive being turned up. `busy`
+adds a third voice, typing in bursts, and a phone at another desk.
+
+It replaced a flat room tone nobody could hear, which was wrong twice over: the
+gain put it at -61 dBFS, and what little there was sat under 151 Hz, where a
+laptop speaker reproduces nothing. The bed now runs through the same telephone
+band as the voice, which puts it on the line rather than in front of it and out
+of those bottom octaves at the same time.
+
+Gains are set from measurement, not by eye, and `MEASURED_DBFS` records what
+they were set to: the bed at -48 and -41 dBFS, a keystroke by its peak at -42
+and -36. The numbers alone read fine and lie — a keystroke at gain `0.11`
+looked reasonable written down and came out at -25 dBFS, as loud as the
+receptionist. Render the graph through an `OfflineAudioContext` and measure
+before changing one. Note `createBuffer` refuses a sample rate under 3000 Hz,
+and the throw lands in the catch around the whole graph: a bad rate silently
+costs the telephone band too, not just the room.
 
 Accent comes from the voice, not the prompt. `LIVE_VOICE_OPTIONS` in
 `lib/types.ts` carries each voice's accent; `gleam` and `meridian` are the North
