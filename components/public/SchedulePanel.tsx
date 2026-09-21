@@ -1,7 +1,12 @@
 "use client";
 
 import { CalendarCheck, Plus } from "lucide-react";
-import { INTEGRATIONS, INTEGRATION_GROUPS, type Integration } from "@/lib/integrations";
+import {
+  INTEGRATIONS,
+  INTEGRATION_GROUPS,
+  integrationGroupsFor,
+  type Integration,
+} from "@/lib/integrations";
 import { demoWeek, hoursUnknown } from "@/lib/schedule";
 import { businessNouns } from "@/lib/use-cases";
 import type { BusinessProfile } from "@/lib/types";
@@ -33,8 +38,32 @@ function MicrosoftMark() {
   );
 }
 
+/**
+ * No free glyph exists for most reservation systems, and a logo redrawn from
+ * memory is a worse look than none. An initial on the brand colour names the
+ * product and claims nothing.
+ */
+function Monogram({ integration }: { integration: Integration }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
+      <rect width="24" height="24" rx="6" fill={integration.hex} />
+      <text
+        x="12"
+        y="16.5"
+        textAnchor="middle"
+        fontSize="13"
+        fontWeight="700"
+        fill="#fff"
+      >
+        {integration.name.charAt(0)}
+      </text>
+    </svg>
+  );
+}
+
 function Mark({ integration }: { integration: Integration }) {
   if (integration.path === "microsoft") return <MicrosoftMark />;
+  if (integration.path === "monogram") return <Monogram integration={integration} />;
   return (
     <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
       <path d={integration.path} fill={integration.hex} />
@@ -152,7 +181,9 @@ export function SchedulePanel({ profile, agentName, onLocked }: Props) {
           </p>
         </div>
 
-        {INTEGRATION_GROUPS.map((group) => {
+        {integrationGroupsFor(booking).map((id) => {
+          const group = INTEGRATION_GROUPS.find((entry) => entry.id === id);
+          if (!group) return null;
           const items = INTEGRATIONS.filter(
             (integration) => integration.group === group.id,
           );

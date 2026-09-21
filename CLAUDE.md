@@ -76,6 +76,10 @@ Two views, one codebase:
   obviously fake. The brand glyphs are Simple Icons path data (CC0) copied in
   rather than imported, so the bundle carries ten paths and not three thousand;
   Microsoft withdrew theirs, so Outlook is drawn as the four squares.
+  `integrationGroupsFor()` picks the groups by kind of business: a restaurant
+  leads with reservation systems (OpenTable, Resy, Tock, SevenRooms…) and loses
+  video visits; nobody else sees them. Most of those have no CC0 glyph, so they
+  are an initial on the brand colour rather than a logo redrawn from memory.
 
   The knowledge panel renders as the form it is in the live product, because
   the pitch is that this is the business's own copy to correct — but every
