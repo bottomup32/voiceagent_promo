@@ -25,6 +25,26 @@ export async function listNotes(customerId: string): Promise<CrmNote[]> {
   return notes.sort((a, b) => b.at.localeCompare(a.at));
 }
 
+/**
+ * Every prospect's notes at once, each tagged with whose it is, for the CRM
+ * feed that reads across the whole pipeline.
+ *
+ * One read per customer, because the store has no SCAN and notes live in a
+ * list per customer — the partitioning that keeps a busy prospect from slowing
+ * the rest down costs a fan-out here. The operator's list is tens of records,
+ * not thousands, and the reads go out together.
+ */
+export async function listAllNotes(
+  customerIds: string[],
+): Promise<(CrmNote & { customerId: string })[]> {
+  const perCustomer = await Promise.all(
+    customerIds.map(async (customerId) =>
+      (await listNotes(customerId)).map((note) => ({ ...note, customerId })),
+    ),
+  );
+  return perCustomer.flat().sort((a, b) => b.at.localeCompare(a.at));
+}
+
 export async function addNote(customerId: string, text: string): Promise<CrmNote> {
   const note: CrmNote = {
     id: nanoid(10),

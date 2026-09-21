@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, NotebookPen, PhoneCall, Eye } from "lucide-react";
+
 import { toast } from "sonner";
 import { readJson } from "@/lib/http";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,13 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/admin/shared";
+import {
+  ENTRY_ICON,
+  FOLLOW_UP_ICON,
+  STAGE_KIND,
+  STAGE_LABEL,
+  toDateValue,
+} from "@/components/admin/crm-shared";
 import { timeline } from "@/lib/analytics";
 import { CUSTOMER_STAGES } from "@/lib/types";
 import type {
@@ -26,33 +33,6 @@ import type {
   CustomerStage,
   TrackEvent,
 } from "@/lib/types";
-
-const STAGE_LABEL: Record<CustomerStage, string> = {
-  new: "New",
-  contacted: "Contacted",
-  interested: "Interested",
-  won: "Won",
-  lost: "Lost",
-};
-
-const STAGE_KIND = {
-  new: "neutral",
-  contacted: "active",
-  interested: "caution",
-  won: "positive",
-  lost: "negative",
-} as const;
-
-const ICON = {
-  note: NotebookPen,
-  view: Eye,
-  call: PhoneCall,
-} as const;
-
-/** An ISO instant as the value a date input wants, and back again. */
-function toDateValue(iso?: string): string {
-  return iso ? iso.slice(0, 10) : "";
-}
 
 export function CrmTab({
   customer,
@@ -156,7 +136,7 @@ export function CrmTab({
             }
           />
           <p className="ta-caption-1 text-muted-foreground">
-            Shows up in the Due filter on the customer list.
+            Puts them in Due now at the top of the CRM board.
           </p>
         </div>
       </div>
@@ -165,7 +145,7 @@ export function CrmTab({
         <StatusBadge kind={STAGE_KIND[stage]}>{STAGE_LABEL[stage]}</StatusBadge>
         {customer.followUpAt ? (
           <span className="ta-caption-1 text-muted-foreground flex items-center gap-1.5">
-            <CalendarClock className="size-3.5" aria-hidden />
+            <FOLLOW_UP_ICON className="size-3.5" aria-hidden />
             Follow up {new Date(customer.followUpAt).toLocaleDateString()}
           </span>
         ) : null}
@@ -200,7 +180,7 @@ export function CrmTab({
         ) : (
           <ul className="space-y-3">
             {entries.map((entry, index) => {
-              const Icon = ICON[entry.kind];
+              const Icon = ENTRY_ICON[entry.kind];
               const row = (
                 <>
                   <Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />

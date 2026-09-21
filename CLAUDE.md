@@ -225,13 +225,30 @@ whether the deploy you are looking at is the one you think it is. The
 `NEXT_PUBLIC_*` contact URLs are baked the same way; changing one needs a
 rebuild.
 
-The admin doubles as a small CRM. `Customer.stage` is the operator's own
-pipeline (`new`/`contacted`/`interested`/`won`/`lost`) and nothing writes it on
-their behalf; what the prospect *did* is reported separately as `Engagement`,
-because a stage that sometimes moves itself is a stage nobody trusts. Notes live
-in their own `notes:{customerId}` list (`lib/crm.ts`) rather than as a field, so
-writing one does not rewrite the customer and the history is kept. `timeline()`
-merges notes, page views and calls into one column.
+The admin doubles as a small CRM, and it is its own page (`/admin/crm`) rather
+than a tab inside one customer: a pipeline is a reading across every prospect,
+and a board you can only see one card of is not a board. The customer detail
+page keeps what belongs to that one demo — Activity, Knowledge, Schedule,
+Prompt, Sources, Share.
+
+`/api/admin/crm` assembles it in one read, all-time rather than windowed,
+because a prospect who went quiet three weeks ago is exactly who is being
+looked for. The page is a stage board beside `activityFeed()`, the same merge
+`timeline()` does but across every prospect and tagged with whose row it is —
+the board says where a deal stands, which changes rarely, and the feed says
+what moved, which is what decides who gets called today. Either one opens the
+same drawer, which loads that prospect's timeline on open rather than with the
+page.
+
+`Customer.stage` is the operator's own pipeline
+(`new`/`contacted`/`interested`/`won`/`lost`) and nothing writes it on their
+behalf; what the prospect *did* is reported separately as `Engagement`, because
+a stage that sometimes moves itself is a stage nobody trusts. Cards carry two
+arrows rather than a drag library, and the move lands on screen before the
+network answers. Notes live in their own `notes:{customerId}` list
+(`lib/crm.ts`) rather than as a field, so writing one does not rewrite the
+customer and the history is kept; `listAllNotes()` fans out one read per
+customer, which is what the per-customer partitioning costs on this screen.
 
 Page views live in `events:{customerId}` lists, not one global log, so a busy
 prospect cannot slow the dashboard down and `deleteCustomer` can take their

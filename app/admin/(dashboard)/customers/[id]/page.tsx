@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityTab } from "@/components/admin/ActivityTab";
-import { CrmTab } from "@/components/admin/CrmTab";
 import { KnowledgeEditor } from "@/components/admin/KnowledgeEditor";
 import { SchedulePanel } from "@/components/public/SchedulePanel";
 import { PromptEditor } from "@/components/admin/PromptEditor";
@@ -240,9 +239,13 @@ export default function CustomerDetailPage({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="rounded-xl border shadow-none lg:col-span-2">
           <CardContent className="p-4 md:p-6">
-            <Tabs defaultValue="crm">
+            {/*
+              No CRM tab. The pipeline reads across every prospect at once, so
+              it lives at /admin/crm; what is left here is this one demo — what
+              it knows, how it sounds, what happened on it.
+            */}
+            <Tabs defaultValue="activity">
               <TabsList variant="line" className="w-full justify-start">
-                <TabsTrigger value="crm">CRM</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
                 <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
                 <TabsTrigger value="schedule">
@@ -255,20 +258,6 @@ export default function CustomerDetailPage({
                 <TabsTrigger value="sources">Sources</TabsTrigger>
                 <TabsTrigger value="share">Share</TabsTrigger>
               </TabsList>
-
-              <TabsContent value="crm" className="pt-4">
-                <CrmTab
-                  customer={draft}
-                  notes={data.notes ?? []}
-                  events={data.events ?? []}
-                  calls={calls}
-                  onChange={(partial) => {
-                    setDraft({ ...draft, ...partial });
-                    void save(partial);
-                  }}
-                  onNoteAdded={load}
-                />
-              </TabsContent>
 
               <TabsContent value="activity" className="pt-4">
                 <ActivityTab calls={calls} customerId={id} onChanged={load} />

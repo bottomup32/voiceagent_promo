@@ -14,12 +14,14 @@ export function AdminBreadcrumb() {
   const pathname = usePathname();
   const onCustomers = pathname.startsWith("/admin/customers");
   const onDetail = onCustomers && pathname !== "/admin/customers";
+  const onCrm = pathname.startsWith("/admin/crm");
+  const nested = onCustomers || onCrm;
 
   return (
     <Breadcrumb>
       <BreadcrumbList className="ta-caption-1">
         <BreadcrumbItem>
-          {onCustomers ? (
+          {nested ? (
             <BreadcrumbLink href="/admin">Overview</BreadcrumbLink>
           ) : (
             <BreadcrumbPage>Overview</BreadcrumbPage>
@@ -34,6 +36,14 @@ export function AdminBreadcrumb() {
               ) : (
                 <BreadcrumbPage>Customers</BreadcrumbPage>
               )}
+            </BreadcrumbItem>
+          </>
+        ) : null}
+        {onCrm ? (
+          <>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>CRM</BreadcrumbPage>
             </BreadcrumbItem>
           </>
         ) : null}

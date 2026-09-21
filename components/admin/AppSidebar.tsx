@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, Users } from "lucide-react";
+import { KanbanSquare, LayoutDashboard, LogOut, Users } from "lucide-react";
 import { VersionBadge } from "@/components/VersionBadge";
 import {
   Sidebar,
@@ -19,6 +19,8 @@ import {
 const ITEMS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/customers", label: "Customers", icon: Users },
+  // The pipeline reads across every prospect, so it cannot live inside one.
+  { href: "/admin/crm", label: "CRM", icon: KanbanSquare },
 ];
 
 export function AppSidebar() {

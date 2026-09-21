@@ -1,11 +1,13 @@
 import type {
   CallLog,
   CrmNote,
+  CustomerStage,
   CustomerStats,
   Engagement,
   Heat,
   TrackEvent,
 } from "./types";
+import { CUSTOMER_STAGES } from "./types";
 
 /** A call left in "started" for longer than this is treated as abandoned. */
 export const STALE_CALL_MS = 10 * 60 * 1000;
@@ -439,6 +441,76 @@ export function timeline(
   }
 
   return entries.sort((a, b) => b.at.localeCompare(a.at));
+}
+
+export type FeedEntry = TimelineEntry & {
+  customerId: string;
+  customerName: string;
+};
+
+/**
+ * One column of everything that happened, across every prospect, newest first.
+ *
+ * The pipeline board says where each deal stands; this says what moved. Put
+ * side by side they answer the question a stage column cannot — which of these
+ * is worth a call today, as opposed to which was worth one last week.
+ *
+ * A record whose customer has been deleted is dropped rather than shown
+ * nameless: the row would be unclickable and tell the operator nothing.
+ */
+export function activityFeed(
+  input: {
+    customers: { id: string; name: string }[];
+    notes: (CrmNote & { customerId: string })[];
+    events: TrackEvent[];
+    calls: CallLog[];
+  },
+  limit = 40,
+): FeedEntry[] {
+  const nameFor = new Map(input.customers.map((customer) => [customer.id, customer.name]));
+
+  const notesFor = new Map<string, CrmNote[]>();
+  for (const note of input.notes) {
+    const list = notesFor.get(note.customerId) ?? [];
+    list.push(note);
+    notesFor.set(note.customerId, list);
+  }
+  const eventsFor = new Map<string, TrackEvent[]>();
+  for (const event of input.events) {
+    const list = eventsFor.get(event.customerId) ?? [];
+    list.push(event);
+    eventsFor.set(event.customerId, list);
+  }
+  const callsFor = new Map<string, CallLog[]>();
+  for (const call of input.calls) {
+    const list = callsFor.get(call.customerId) ?? [];
+    list.push(call);
+    callsFor.set(call.customerId, list);
+  }
+
+  const entries: FeedEntry[] = [];
+  for (const [customerId, customerName] of nameFor) {
+    for (const entry of timeline(
+      notesFor.get(customerId) ?? [],
+      eventsFor.get(customerId) ?? [],
+      callsFor.get(customerId) ?? [],
+    )) {
+      entries.push({ ...entry, customerId, customerName });
+    }
+  }
+
+  return entries.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
+}
+
+/** How many prospects sit in each stage, for the board's column headers. */
+export function stageCounts<T extends { stage?: CustomerStage }>(
+  customers: T[],
+): Record<CustomerStage, number> {
+  const counts = Object.fromEntries(
+    CUSTOMER_STAGES.map((stage) => [stage, 0]),
+  ) as Record<CustomerStage, number>;
+  for (const customer of customers) counts[customer.stage ?? "new"] += 1;
+  return counts;
 }
 
 /** Prospects the operator said they would come back to, soonest first. */
