@@ -1,13 +1,15 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { CalendarCheck, Plus } from "lucide-react";
+import { dayFromKey, nextDays, zonedToday } from "@/lib/call-clock";
 import {
   INTEGRATIONS,
   INTEGRATION_GROUPS,
   integrationGroupsFor,
   type Integration,
 } from "@/lib/integrations";
-import { demoWeek, hoursUnknown } from "@/lib/schedule";
+import { datedWeek, demoWeek, hoursUnknown } from "@/lib/schedule";
 import { businessNouns } from "@/lib/use-cases";
 import type { BusinessProfile } from "@/lib/types";
 
@@ -90,9 +92,31 @@ function IntegrationTile({
   );
 }
 
+const subscribeToNothing = () => () => {};
+
+/**
+ * Today in the browser's own timezone, which is the one `/api/session` is sent,
+ * so the dates here are the dates the receptionist is working from. A string,
+ * because a snapshot has to compare equal to itself between renders.
+ */
+function todayKey(): string {
+  return zonedToday(
+    new Date(),
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  ).key;
+}
+
 export function SchedulePanel({ profile, agentName, onLocked }: Props) {
   const booking = businessNouns(profile.category).booking;
-  const week = demoWeek(profile.hours);
+  // The server has no idea what day it is where the reader is sitting, so it
+  // draws the undated week and so does the first render in the browser; the
+  // dates arrive once hydration is over and cannot disagree with it.
+  const today = dayFromKey(
+    useSyncExternalStore(subscribeToNothing, todayKey, () => null),
+  );
+  const week = today
+    ? datedWeek(profile.hours, nextDays(today, 7))
+    : demoWeek(profile.hours);
   const blank = hoursUnknown(week);
 
   return (
@@ -111,7 +135,9 @@ export function SchedulePanel({ profile, agentName, onLocked }: Props) {
       </div>
 
       <section className="space-y-2">
-        <h3 className="ta-headline-2">A week on the book</h3>
+        <h3 className="ta-headline-2">
+          {today ? "The next seven days" : "A week on the book"}
+        </h3>
         {blank ? (
           <p className="ta-caption-1 text-muted-foreground">
             We did not find opening hours for this business, so there is no week
@@ -130,7 +156,14 @@ export function SchedulePanel({ profile, agentName, onLocked }: Props) {
               {week.map((day) => (
                 <div key={day.day} className="flex flex-col gap-1.5">
                   <div className="space-y-0.5 text-center">
-                    <p className="ta-label-1">{day.short}</p>
+                    <p className={`ta-label-1 ${day.isToday ? "text-primary" : ""}`}>
+                      {day.isToday ? "Today" : day.short}
+                    </p>
+                    {day.date ? (
+                      <p className="ta-caption-2 tabular-nums">
+                        {day.isToday ? `${day.short} ${day.date}` : day.date}
+                      </p>
+                    ) : null}
                     <p className="ta-caption-2 text-muted-foreground tabular-nums">
                       {day.closed ? "Closed" : (day.hours ?? "—")}
                     </p>

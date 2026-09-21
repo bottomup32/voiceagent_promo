@@ -1,3 +1,4 @@
+import type { CalendarDay } from "./call-clock";
 import type { BusinessHour } from "./types";
 
 /**
@@ -11,8 +12,11 @@ import type { BusinessHour } from "./types";
  *
  * Deliberately built without a clock. The page is server-rendered and then
  * hydrated, so anything derived from `Date.now()` here would render one week on
- * the server and a different one in the browser a second later. Weekday names
- * carry the idea and cannot disagree with themselves.
+ * the server and a different one in the browser a second later. `demoWeek()` is
+ * the undated Monday-to-Sunday both of those draw; `datedWeek()` is handed its
+ * dates by a caller that knows what day it is — the panel once it has mounted,
+ * and `lib/call-clock.ts` for the call, which is how the receptionist and the
+ * screen come to agree about which times are taken.
  *
  * Pure data, like lib/use-cases.ts — a client component imports it.
  */
@@ -35,6 +39,9 @@ export type ScheduleDay = {
   hours: string | null;
   closed: boolean;
   slots: ScheduleSlot[];
+  /** "Sep 21". Only on a week that was given its dates. */
+  date?: string;
+  isToday?: boolean;
 };
 
 const WEEK = [
@@ -141,6 +148,26 @@ export function demoWeek(hours: BusinessHour[] | undefined): ScheduleDay[] {
       slots,
     };
   });
+}
+
+/**
+ * The same week, starting today and carrying dates.
+ *
+ * Built by looking each date's weekday up in `demoWeek()` rather than by
+ * drawing again, so Tuesday's bookings are Tuesday's whichever column Tuesday
+ * lands in, and the week does not reshuffle at midnight.
+ */
+export function datedWeek(
+  hours: BusinessHour[] | undefined,
+  days: CalendarDay[],
+): ScheduleDay[] {
+  const byDay = new Map(demoWeek(hours).map((day) => [day.day, day]));
+  const out: ScheduleDay[] = [];
+  days.forEach((date, index) => {
+    const found = byDay.get(date.weekday);
+    if (found) out.push({ ...found, date: date.label, isToday: index === 0 });
+  });
+  return out;
 }
 
 /** True when research found no usable hours at all, so the week is a blank grid. */

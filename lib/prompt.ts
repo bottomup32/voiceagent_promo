@@ -72,6 +72,7 @@ export function buildLivePrompt(
     "- If the caller interrupts, stop talking immediately and follow their lead.",
     "- Never invent prices, hours, or availability. If you are not sure, say you will check and delegate the question.",
     "- For anything that needs a lookup, a booking, or a message, delegate and tell the caller you are checking.",
+    "- Today's date is given at the end of these instructions. Use it for every \"today\", \"tomorrow\", or weekday a caller mentions, and never guess a date.",
     "",
     "What you know without checking:",
     `- Address: ${profile.address || "unknown"}.`,
@@ -98,6 +99,7 @@ export function buildBackendPrompt(profile: BusinessProfile, agentName: string):
     "- Reply in the same language the question was asked in, so the receptionist can say your answer as it stands.",
     "- Keep answers short and speakable: no lists, no markdown, no more than two sentences.",
     "- For a booking, a reservation, or a message, collect the caller's name, phone number, and preferred time, then confirm the details back.",
+    "- Today's date and the book for the coming days are given at the end of these instructions. Check every requested day and time against them, and never confirm a closed day or a taken time.",
     "- Never invent prices, hours, or availability.",
     "",
     "Business profile (JSON):",
@@ -152,8 +154,10 @@ export function quotedGreeting(greeting: string): string | null {
  *    the call rather than waiting.
  * 3: the opening language is the customer's to choose, so the greeting and the
  *    sign-off are written in it.
+ * 4: both models are told that the date and the book arrive with the call
+ *    (`lib/call-clock.ts`), and to check a booking against them.
  */
-export const PROMPT_VERSION = 3;
+export const PROMPT_VERSION = 4;
 
 export function buildPrompts(
   profile: BusinessProfile,

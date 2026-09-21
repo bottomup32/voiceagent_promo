@@ -76,11 +76,15 @@ Two views, one codebase:
   editing the hours there moves the grid, unsaved edits included — and
   `lib/integrations.ts` lists the calendars and booking tools a real booking
   would land in. The demo takes no bookings and nothing is connected; clicking
-  anything raises a toast saying so. The week carries no dates and reads no
-  clock: the page is server-rendered and then hydrated, and `Date.now()` on
-  both sides renders two different weeks. Which slots are taken is fixed by
-  position for the same reason a diary that reshuffles while you look at it is
-  obviously fake. The brand glyphs are Simple Icons path data (CC0) copied in
+  anything raises a toast saying so. `lib/schedule.ts` reads no clock: the page
+  is server-rendered and then hydrated, and `Date.now()` on both sides renders
+  two different weeks. So the server and the first browser render draw the
+  undated Monday-to-Sunday `demoWeek()`, and `SchedulePanel` swaps in
+  `datedWeek()` — seven days starting today, with dates — once it has mounted
+  (`useSyncExternalStore` with a null server snapshot). Which slots are taken is
+  fixed by weekday, for the same reason a diary that reshuffles while you look
+  at it is obviously fake, and so that the week does not reshuffle at midnight
+  either. The brand glyphs are Simple Icons path data (CC0) copied in
   rather than imported, so the bundle carries ten paths and not three thousand;
   Microsoft withdrew theirs, so Outlook is drawn as the four squares.
   `integrationGroupsFor()` picks the groups by kind of business: a restaurant
@@ -148,6 +152,15 @@ Facts that shape the code:
 - The billed duration is `session.closed.usage.seconds`, not a local timer.
   Hang-up sends `session.close` and waits for `session.closed` with a timeout.
 - Leaving the page reports the call as abandoned through `navigator.sendBeacon`.
+- The prompts are stored, so they cannot hold a date. `/api/session` appends
+  `callClock()` (`lib/call-clock.ts`) to both instructions per call: today, the
+  next seven days written out one by one — a model asked to work out a weekday
+  gets it wrong — and the same taken and free times the Schedule tab draws, since
+  both come from `datedWeek()`. Both models get it because the booking is
+  delegated. Hand-edited prompts get it too, which is the point of appending
+  rather than rebuilding. The timezone is the browser's, sent with the offer and
+  run through `safeTimeZone()` before it goes anywhere near a prompt; the host
+  runs in UTC and the profile has no timezone of its own.
 
 `lib/call-audio.ts` runs playback through Web Audio so the demo sounds like a
 phone call: the voice is narrowed to the telephone band, and behind it a room
@@ -243,7 +256,7 @@ default voice). Analytics is pure functions over those records in
 import `formatDuration` and `isResearchStalled` from it and pulling
 `lib/calls.ts` in would break the browser bundle. The same rule covers every
 `lib/` module a client component imports: `proof`, `use-cases`, `schedule`,
-`integrations`, `hours`, `voice-level`, `scroll`.
+`integrations`, `hours`, `voice-level`, `scroll`, `call-clock`.
 
 `/api/admin/health` reports what the deployment can actually do — it pings the
 store rather than trusting that the variables look right — and is the first

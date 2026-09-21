@@ -13,6 +13,7 @@ import { visitorId } from "@/lib/visitor";
 import { demoAllowance, inFlightCalls } from "@/lib/analytics";
 import { DEFAULT_DEMO_MINUTES } from "@/lib/types";
 import { isAdminRequest } from "@/lib/auth";
+import { callClock, safeTimeZone } from "@/lib/call-clock";
 import { OpenAIError, createLiveSession } from "@/lib/openai";
 import type { CallLog } from "@/lib/types";
 
@@ -38,6 +39,12 @@ const RATE_WINDOW_MS = 60_000;
  */
 const CONCURRENT_PER_CUSTOMER = Number(process.env.CONCURRENT_PER_CUSTOMER || 4);
 const LIVE_SESSION_LIMIT = Number(process.env.LIVE_SESSION_LIMIT || 20);
+
+/** For a browser that sent no timezone, or one that is not a timezone. */
+const DEFAULT_TIMEZONE = safeTimeZone(
+  process.env.DEFAULT_TIMEZONE,
+  "America/Los_Angeles",
+);
 
 const BUSY_DEMO =
   "This demo already has as many people on it as it can take at once. Try again in a moment.";
@@ -74,7 +81,12 @@ function clientIp(request: Request): string {
 }
 
 export async function POST(request: Request) {
-  let body: { customerId?: string; sdp?: string; isTest?: boolean };
+  let body: {
+    customerId?: string;
+    sdp?: string;
+    isTest?: boolean;
+    timeZone?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -208,17 +220,26 @@ export async function POST(request: Request) {
     }
   }
 
+  // The stored prompts cannot know what day it is, so the date goes on here,
+  // per call, and onto both: the voice hears "tomorrow" and the model it
+  // delegates to is the one that takes the booking.
+  const clock = callClock(
+    new Date(),
+    safeTimeZone(body.timeZone, DEFAULT_TIMEZONE),
+    customer.profile.hours,
+  );
+
   try {
     const session = await createLiveSession(
       {
         model: process.env.LIVE_MODEL || "gpt-live-1",
-        instructions: customer.prompts.live,
+        instructions: `${customer.prompts.live}\n\n${clock}`,
         audio: { output: { voice: customer.voice } },
         delegation: {
           type: "responses",
           responses: {
             model: process.env.BACKEND_MODEL || "gpt-5.6-terra",
-            instructions: customer.prompts.backend,
+            instructions: `${customer.prompts.backend}\n\n${clock}`,
           },
         },
         store: false,

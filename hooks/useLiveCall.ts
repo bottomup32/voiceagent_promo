@@ -319,6 +319,9 @@ export function useLiveCall(
           customerId,
           sdp: pc.localDescription?.sdp,
           isTest,
+          // The server runs in UTC and the business has no timezone on file,
+          // so the caller's is what decides which day "tomorrow" is.
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
 
