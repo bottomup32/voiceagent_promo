@@ -6,6 +6,7 @@ import { listCalls, readEvents } from "@/lib/calls";
 import { computeStats } from "@/lib/analytics";
 import { listNotes } from "@/lib/crm";
 import { resolvePrompts } from "@/lib/prompt";
+import { languageOf } from "@/lib/languages";
 import type {
   BusinessProfile,
   CallSound,
@@ -71,6 +72,7 @@ export async function PATCH(request: Request, { params }: Params) {
     lastContactedAt: string | null;
     followUpAt: string | null;
     voice: string;
+    language: string;
     callSound: CallSound;
     profile: BusinessProfile;
     prompts: Partial<CustomerPrompts>;
@@ -119,6 +121,10 @@ export async function PATCH(request: Request, { params }: Params) {
         ? Math.max(0, Math.round(body.demoMinutes))
         : customer.demoMinutes,
     voice: body.voice ?? customer.voice,
+    // An unrecognised code lands on English rather than leaving the receptionist
+    // opening in a language nothing here knows how to greet in.
+    language:
+      body.language !== undefined ? languageOf(body.language).code : customer.language,
     stage: body.stage ?? customer.stage,
     // null clears a date the operator set by mistake; undefined leaves it.
     lastContactedAt:
@@ -139,6 +145,7 @@ export async function PATCH(request: Request, { params }: Params) {
     submitted: body.prompts,
     profile: next.profile,
     agentName: next.agentName,
+    language: next.language,
     regenerate: body.regeneratePrompts,
   });
 

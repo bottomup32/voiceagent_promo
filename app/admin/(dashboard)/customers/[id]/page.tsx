@@ -100,6 +100,7 @@ export default function CustomerDetailPage({
         lastContactedAt: partial?.lastContactedAt ?? draft.lastContactedAt ?? "",
         followUpAt: partial?.followUpAt ?? draft.followUpAt ?? "",
         voice: partial?.voice ?? draft.voice,
+        language: partial?.language ?? draft.language,
         callSound: partial?.callSound ?? draft.callSound,
         profile: partial?.profile ?? draft.profile,
         prompts: partial?.prompts ?? draft.prompts,
@@ -293,12 +294,19 @@ export default function CustomerDetailPage({
                 <PromptEditor
                   agentName={draft.agentName}
                   voice={draft.voice}
+                  language={draft.language}
                   callSound={draft.callSound}
                   onCallSoundChange={(callSound) => setDraft({ ...draft, callSound })}
                   prompts={draft.prompts}
                   regenerating={saving}
                   onAgentNameChange={(agentName) => setDraft({ ...draft, agentName })}
                   onVoiceChange={(voice) => setDraft({ ...draft, voice })}
+                  onLanguageChange={(language) => {
+                    // The greeting is written in the language, so the prompts
+                    // have to be rebuilt for the change to reach the call.
+                    setDraft({ ...draft, language });
+                    void save({ language });
+                  }}
                   onPromptsChange={(prompts) => setDraft({ ...draft, prompts })}
                   onRegenerate={async () => {
                     setSaving(true);
@@ -310,6 +318,7 @@ export default function CustomerDetailPage({
                           profile: draft.profile,
                           agentName: draft.agentName,
                           voice: draft.voice,
+                          language: draft.language,
                           regeneratePrompts: true,
                         }),
                       });

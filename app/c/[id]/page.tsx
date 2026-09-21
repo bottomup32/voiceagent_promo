@@ -71,6 +71,7 @@ export default async function CustomerDemoPage({ params }: Props) {
       address={customer.profile.address}
       phone={customer.profile.phone}
       agentName={customer.agentName}
+      language={customer.language}
       callSound={resolveCallSound(customer.callSound)}
       voiceLabel={voice ? `${voice.label}, ${voice.accent}` : customer.voice}
       profile={customer.profile}

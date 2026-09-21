@@ -9,6 +9,7 @@ import { PromptView } from "@/components/public/PromptView";
 import { ContactButtons } from "@/components/public/ContactButtons";
 import { Hero } from "@/components/public/Hero";
 import { Logo } from "@/components/public/Logo";
+import { LanguageNote } from "@/components/public/LanguageNote";
 import { SchedulePanel } from "@/components/public/SchedulePanel";
 import { ScenarioTeaser } from "@/components/public/ScenarioTeaser";
 import { StickyCall } from "@/components/public/StickyCall";
@@ -36,6 +37,7 @@ type DemoCallProps = {
   address?: string;
   phone?: string;
   agentName: string;
+  language?: string;
   voiceLabel: string;
   profile: BusinessProfile;
   prompts: Pick<CustomerPrompts, "live" | "backend" | "greeting">;
@@ -51,6 +53,7 @@ export function DemoCall({
   name,
   category,
   agentName,
+  language,
   callSound,
   voiceLabel,
   profile,
@@ -174,6 +177,8 @@ export function DemoCall({
           in here when their content is settled.
         */}
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+          <LanguageNote agentName={agentName} language={language} />
+
           <ScenarioTeaser
             customerId={customerId}
             category={category}

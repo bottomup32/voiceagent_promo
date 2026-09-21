@@ -18,6 +18,7 @@ function publicProps(customer: Customer) {
     address: customer.profile.address,
     phone: customer.profile.phone,
     agentName: customer.agentName,
+    language: customer.language,
     callSound: customer.callSound ?? DEFAULT_CALL_SOUND,
     profile: customer.profile,
     prompts: {
@@ -74,6 +75,7 @@ const customer: Customer = {
   voice: "gleam",
   callSound: DEFAULT_CALL_SOUND,
   agentName: "Alex",
+  language: "ko",
   status: "ready",
   createdAt: "2026-09-19T00:00:00.000Z",
   updatedAt: "2026-09-19T00:00:00.000Z",
@@ -85,6 +87,8 @@ describe("public demo props", () => {
 
   it("carries what the business should see", () => {
     expect(props.name).toBe("Factoria Family Dentistry");
+    // The opening language is the business's own setting, not an operator note.
+    expect(props.language).toBe("ko");
     expect(props.prompts.live).toBe("live");
     expect(props.dossier).toBe("# Briefing");
     expect(props.sources).toHaveLength(1);
@@ -113,6 +117,7 @@ describe("public demo props", () => {
         "demo",
         "demoUrl",
         "dossier",
+        "language",
         "name",
         "phone",
         "profile",

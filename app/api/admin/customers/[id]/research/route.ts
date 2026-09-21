@@ -83,7 +83,7 @@ export async function POST(request: Request, { params }: Params) {
       sources: result.sources,
       prompts: keepPrompts
         ? customer.prompts
-        : buildPrompts(result.profile, customer.agentName),
+        : buildPrompts(result.profile, customer.agentName, customer.language),
       status: "ready" as const,
       error: undefined,
       researchedAt: new Date().toISOString(),

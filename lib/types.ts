@@ -106,6 +106,12 @@ export type Customer = {
   voice: string;
   callSound?: CallSound;
   agentName: string;
+  /**
+   * The language the receptionist opens in. Absent means English, which is
+   * what almost every demo wants. It changes the opening only — the prompt
+   * follows the caller into any language either way.
+   */
+  language?: string;
   /** Demo minutes for this prospect; absent means DEFAULT_DEMO_MINUTES. */
   demoMinutes?: number;
   stage?: CustomerStage;
@@ -243,6 +249,14 @@ export const LIVE_VOICE_OPTIONS: VoiceOption[] = [
 export const LIVE_VOICES = LIVE_VOICE_OPTIONS.map((voice) => voice.id);
 
 export const DEFAULT_VOICE = "gleam";
+
+/**
+ * There is no voice here for most of the languages a demo can open in, because
+ * the voice carries its accent into every language it speaks. A Korean opening
+ * in `gleam` is fluent Korean in an American accent. That is a property of the
+ * model, not something this app can configure away, so the prompt tells the
+ * receptionist never to apologise for it.
+ */
 
 /** How the call itself should sound, on top of what the model says. */
 export type CallSound = {

@@ -13,17 +13,20 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { LIVE_VOICE_OPTIONS, type CallSound, type CustomerPrompts } from "@/lib/types";
+import { LANGUAGES, languageOf } from "@/lib/languages";
 import { Switch } from "@/components/ui/switch";
 import { resolveCallSound } from "@/lib/call-audio";
 
 type Props = {
   agentName: string;
   voice: string;
+  language?: string;
   callSound?: Partial<CallSound> | null;
   onCallSoundChange: (sound: CallSound) => void;
   prompts: CustomerPrompts;
   onAgentNameChange: (value: string) => void;
   onVoiceChange: (value: string) => void;
+  onLanguageChange: (value: string) => void;
   onPromptsChange: (prompts: CustomerPrompts) => void;
   onRegenerate: () => void;
   regenerating: boolean;
@@ -64,21 +67,29 @@ function PromptField({
 export function PromptEditor({
   agentName,
   voice,
+  language,
   callSound,
   onCallSoundChange,
   prompts,
   onAgentNameChange,
   onVoiceChange,
+  onLanguageChange,
   onPromptsChange,
   onRegenerate,
   regenerating,
 }: Props) {
   const sound = resolveCallSound(callSound);
   const selected = LIVE_VOICE_OPTIONS.find((option) => option.id === voice);
+  const opensIn = languageOf(language);
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      {/*
+        Two columns, not four. The detail page gives this panel two thirds of
+        the width, and four columns put "Gleam · North American" and
+        "Korean · 한국어" into each other.
+      */}
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="agentName" className="ta-label-1">
             Receptionist name
@@ -110,6 +121,36 @@ export function PromptEditor({
           <p className="ta-caption-1 text-muted-foreground">
             Pick a North American voice for a US business. The accent comes from the
             voice, not the prompt.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="language" className="ta-label-1">
+            Opens in
+          </Label>
+          <Select
+            value={opensIn.code}
+            onValueChange={(value) => onLanguageChange(value ?? opensIn.code)}
+          >
+            <SelectTrigger id="language">
+              <SelectValue>
+                {opensIn.label === opensIn.native
+                  ? opensIn.label
+                  : `${opensIn.label} · ${opensIn.native}`}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {LANGUAGES.map((option) => (
+                <SelectItem key={option.code} value={option.code}>
+                  {option.label === option.native
+                    ? option.label
+                    : `${option.label} · ${option.native}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="ta-caption-1 text-muted-foreground">
+            Only where the call starts. It still follows a caller into any language.
+            The accent stays the voice&rsquo;s, whatever language it speaks.
           </p>
         </div>
         <div className="flex items-end">

@@ -27,7 +27,7 @@ export function normalize(customer: Customer): Customer {
   if (!customer.prompts?.edited && customer.prompts?.version !== PROMPT_VERSION) {
     customer = {
       ...customer,
-      prompts: buildPrompts(customer.profile, customer.agentName),
+      prompts: buildPrompts(customer.profile, customer.agentName, customer.language),
     };
   }
 

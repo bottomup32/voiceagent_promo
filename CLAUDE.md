@@ -18,7 +18,14 @@ npx vitest run -t "keeps the blank lines"  # one test by name
 
 There is no test script in `package.json`; call `vitest` directly. Tests are plain
 unit tests over `lib/` with no DOM and no network, so the whole suite runs in well
-under a second.
+under a second. Keep it that way: logic a component needs tested goes into a pure
+`lib/` module (`lib/scroll.ts` takes a structural element type and an injectable
+`getStyle` for exactly this reason; `lib/voice-level.ts` is the orb's math without
+the canvas).
+
+`README.md` has fallen behind the code (it still says `quartz` is the default
+voice, that Hobby caps a function at 60s, and that research needs the CLI or
+Anthropic). Where the two disagree, this file and `.env.example` are right.
 
 ## What this is
 
@@ -34,6 +41,22 @@ Two views, one codebase:
   transcript, the knowledge, prompts and sources, and a standing offer to talk
   to us (`lib/links.ts` holds the URLs). It says plainly that it is a demo and
   not the business's phone line.
+
+  The page opens on `components/public/Hero.tsx`: an outcome headline carrying
+  the business name, chips that are that business's own short FAQ questions
+  (`lib/proof.ts`, padded from a fallback list, dropped rather than truncated
+  when long), and a phone-shaped frame that shows the scripted opening line
+  until the call starts and the live transcript after. `quotedGreeting()`
+  returns null when the greeting prompt quotes nothing, so an instruction is
+  never shown as speech. `StickyCall` keeps the same live call one tap away once
+  the button scrolls off. `VoiceOrb` draws on a canvas from two `AnalyserNode`s
+  tapped into the call's existing Web Audio graph and reads them through a ref,
+  so React never renders a frame. `Exchange` is the one chat bubble shared by
+  the live transcript, the scenarios page and the admin call viewers.
+
+  `/c/[id]/scenarios` is the rest of the menu (`lib/use-cases.ts`). Only the
+  entries marked `live` are true of the demo; the others are the pitch, and the
+  copy must never imply a prospect can dial in and have a booking taken.
 
   Three tabs: Knowledge, Schedule, Prompt. Sources is not one of them — the
   research is the working-out, so it sits at the foot of the Knowledge it
@@ -75,6 +98,10 @@ Do not mix these up. They are separate systems with separate credentials.
 - **Voice** is OpenAI **GPT-Live-1** (`gpt-live-1`), a different API from the
   Realtime API: sessions are created at `POST /v1/live/sessions` with the SDP
   offer in the body, not with an ephemeral client secret. Needs `OPENAI_API_KEY`.
+  The voice model does the talking and hands lookups to `BACKEND_MODEL` through
+  `delegation: { type: "responses" }` in the session config, which is why there
+  are two prompts: `prompts.live` for the voice, `prompts.backend` for the
+  model it delegates to.
 - **Research** has three providers behind `lib/research-runner.ts`. A
   subscription only ever works through a CLI signed in on a machine, so locally
   it shells out to the **Claude Code CLI** in headless mode
@@ -121,6 +148,20 @@ Accent comes from the voice, not the prompt. `LIVE_VOICE_OPTIONS` in
 `lib/types.ts` carries each voice's accent; `gleam` and `meridian` are the North
 American ones and `gleam` is the default.
 
+Which language the call *opens* in is per customer (`Customer.language`,
+`lib/languages.ts`), because English is right for almost every demo and wrong
+for a consulate. It changes the opening only — following the caller into any
+language is in the prompt either way, and for a non-English opening the prompt
+says outright that English is one of the languages it switches into. The
+prompts stay written in English, since a model follows an English instruction
+to speak Korean perfectly well and an English prompt is one the operator can
+still read. The greeting is the exception and is written out in each language,
+because `spokenGreeting()` pulls the quoted line and says it aloud when the
+model has not opened by itself; there is no chance to translate at that moment.
+There is no voice for most of these languages, so a Korean opening is fluent
+Korean in whatever accent the voice has — a property of the model, which is why
+the prompt tells the receptionist never to apologise for it.
+
 ## Research
 
 `lib/research.ts` runs two passes: one with web search that writes a markdown
@@ -145,6 +186,12 @@ re-research until someone asks to rebuild. Prompts nobody has touched are
 rebuilt from the data on every save, so a new receptionist name or a corrected
 address reaches the call.
 
+Changing the generated wording in a way saved records should pick up means
+bumping `PROMPT_VERSION`: `lib/store.ts` rebuilds unedited prompts on read when
+it sees an older version, and leaves edited ones alone. The prompts tell the
+receptionist to follow the caller's language; like accent, that is not a
+per-customer setting.
+
 ## Storage
 
 Everything goes through the small `Store` interface in `lib/kv.ts`, which has
@@ -161,11 +208,18 @@ migrations for old records live (a missing business name, the retired `quartz`
 default voice). Analytics is pure functions over those records in
 `lib/analytics.ts` — keep it free of `node:fs` imports, since client components
 import `formatDuration` and `isResearchStalled` from it and pulling
-`lib/calls.ts` in would break the browser bundle.
+`lib/calls.ts` in would break the browser bundle. The same rule covers every
+`lib/` module a client component imports: `proof`, `use-cases`, `schedule`,
+`integrations`, `hours`, `voice-level`, `scroll`.
 
 `/api/admin/health` reports what the deployment can actually do — it pings the
 store rather than trusting that the variables look right — and is the first
-thing to read when a deploy misbehaves.
+thing to read when a deploy misbehaves. `next.config.ts` bakes
+`NEXT_PUBLIC_APP_VERSION` (package version plus short commit) in at build time
+and `VersionBadge` shows it in both views, so the second thing to check is
+whether the deploy you are looking at is the one you think it is. The
+`NEXT_PUBLIC_*` contact URLs are baked the same way; changing one needs a
+rebuild.
 
 The admin doubles as a small CRM. `Customer.stage` is the operator's own
 pipeline (`new`/`contacted`/`interested`/`won`/`lost`) and nothing writes it on

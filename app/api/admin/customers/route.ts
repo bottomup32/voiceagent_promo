@@ -13,6 +13,7 @@ import { jsonError } from "@/lib/api";
 import { isMapsUrl } from "@/lib/maps";
 import { emptyProfile, researchBusiness } from "@/lib/research";
 import { buildPrompts } from "@/lib/prompt";
+import { languageOf } from "@/lib/languages";
 import type { Customer, CustomerWithStats, ResearchInputs } from "@/lib/types";
 import { DEFAULT_CALL_SOUND, DEFAULT_VOICE } from "@/lib/types";
 
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
     contactName?: string;
     contactEmail?: string;
     agentName?: string;
+    language?: string;
   };
   try {
     body = await request.json();
@@ -91,6 +93,8 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString();
   const agentName = (body.agentName ?? "Alex").trim() || "Alex";
+  // An unknown code opens in English rather than refusing the create.
+  const language = languageOf(body.language).code;
   const profile = emptyProfile(businessName);
 
   const customer: Customer = {
@@ -106,10 +110,11 @@ export async function POST(request: Request) {
     profile,
     dossier: "",
     sources: [],
-    prompts: buildPrompts(profile, agentName),
+    prompts: buildPrompts(profile, agentName, language),
     voice: process.env.LIVE_VOICE || DEFAULT_VOICE,
     callSound: DEFAULT_CALL_SOUND,
     agentName,
+    language,
     status: "researching",
     createdAt: now,
     updatedAt: now,
@@ -150,7 +155,7 @@ async function runResearch(id: string, inputs: ResearchInputs) {
       sources: result.sources,
       prompts: current.prompts.edited
         ? current.prompts
-        : buildPrompts(result.profile, current.agentName),
+        : buildPrompts(result.profile, current.agentName, current.language),
       status: "ready",
       error: undefined,
       researchedAt: new Date().toISOString(),

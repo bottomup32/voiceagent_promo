@@ -1,4 +1,5 @@
 import { knownHours } from "./hours";
+import { languageOf } from "./languages";
 import type { BusinessProfile, CustomerPrompts } from "./types";
 
 function hoursLine(profile: BusinessProfile): string {
@@ -36,7 +37,13 @@ function city(profile: BusinessProfile): string {
   return segments.length >= 2 ? segments[segments.length - 2] : profile.address || "";
 }
 
-export function buildLivePrompt(profile: BusinessProfile, agentName: string): string {
+export function buildLivePrompt(
+  profile: BusinessProfile,
+  agentName: string,
+  languageCode?: string,
+): string {
+  const language = languageOf(languageCode);
+  const english = language.code === "en";
   // `false` drops a line; an empty string is a deliberate blank line.
   const lines: (string | false)[] = [
     `You are ${agentName}, the phone receptionist at ${profile.name}${
@@ -44,9 +51,14 @@ export function buildLivePrompt(profile: BusinessProfile, agentName: string): st
     }${city(profile) ? ` in ${city(profile)}` : ""}.`,
     "",
     "Language:",
-    "- Open in English, spoken in a standard American accent. While you are speaking English, never drift into a British, Australian, or Irish accent.",
+    english
+      ? "- Open in English, spoken in a standard American accent. While you are speaking English, never drift into a British, Australian, or Irish accent."
+      : `- Open in ${language.label}. Speak it naturally, the way a native speaker at a front desk would.`,
     "- If the caller speaks to you in another language, switch to that language on your very next turn and keep speaking it until they go back or ask you to.",
-    "- Follow the language they are actually speaking, not the one they name. Do not fall back to English to be safe, and do not ask permission to switch.",
+    `- Follow the language they are actually speaking, not the one they name. Do not fall back to ${language.label} to be safe, and do not ask permission to switch.`,
+    english
+      ? false
+      : "- English is one of those languages. A caller who speaks English gets English, with no fuss about it.",
     "- Your voice carries its own accent in every language. That is fine. Never apologise for it or remark on it.",
     "- Say the business name as it is written. Give numbers, times, and addresses the way a local speaker of the caller's language would say them.",
     "",
@@ -71,7 +83,7 @@ export function buildLivePrompt(profile: BusinessProfile, agentName: string): st
       ? `- Known for: ${profile.highlights.slice(0, 5).join("; ")}.`
       : false,
     "",
-    `End the call politely, for example "Thanks for calling ${profile.name}, have a great day."`,
+    `End the call politely, for example "${language.signoff(profile.name)}"`,
   ];
   return lines.filter((line) => line !== false).join("\n");
 }
@@ -93,12 +105,21 @@ export function buildBackendPrompt(profile: BusinessProfile, agentName: string):
   ].join("\n");
 }
 
-export function buildGreetingPrompt(profile: BusinessProfile, agentName: string): string {
+export function buildGreetingPrompt(
+  profile: BusinessProfile,
+  agentName: string,
+  languageCode?: string,
+): string {
+  const language = languageOf(languageCode);
+  const accent = language.code === "en" ? " and in a standard American accent" : "";
   // The guide's recipe for an assistant-led opening: name the language, give
   // the words, and say plainly that you speak before the caller does.
   return [
     "Speak first. Do not wait for the caller to say anything.",
-    `Greet them in English, brightly and in a standard American accent. Say: "Thanks for calling ${profile.name}, this is ${agentName}! How can I help you today?"`,
+    `Greet them in ${language.label}, brightly${accent}. Say: "${language.greeting(
+      profile.name,
+      agentName,
+    )}"`,
     "Then stop and listen. If they answer in another language, carry on in that language.",
   ].join(" ");
 }
@@ -129,17 +150,20 @@ export function quotedGreeting(greeting: string): string | null {
  *
  * 2: speak the caller's language, and say plainly that the receptionist opens
  *    the call rather than waiting.
+ * 3: the opening language is the customer's to choose, so the greeting and the
+ *    sign-off are written in it.
  */
-export const PROMPT_VERSION = 2;
+export const PROMPT_VERSION = 3;
 
 export function buildPrompts(
   profile: BusinessProfile,
   agentName: string,
+  languageCode?: string,
 ): CustomerPrompts {
   return {
-    live: buildLivePrompt(profile, agentName),
+    live: buildLivePrompt(profile, agentName, languageCode),
     backend: buildBackendPrompt(profile, agentName),
-    greeting: buildGreetingPrompt(profile, agentName),
+    greeting: buildGreetingPrompt(profile, agentName, languageCode),
     edited: false,
     version: PROMPT_VERSION,
   };
@@ -161,11 +185,12 @@ export function resolvePrompts(input: {
   submitted?: Partial<CustomerPrompts> | null;
   profile: BusinessProfile;
   agentName: string;
+  language?: string;
   regenerate?: boolean;
 }): CustomerPrompts {
-  const { current, submitted, profile, agentName, regenerate } = input;
+  const { current, submitted, profile, agentName, language, regenerate } = input;
 
-  if (regenerate) return buildPrompts(profile, agentName);
+  if (regenerate) return buildPrompts(profile, agentName, language);
 
   if (submitted) {
     const typed = {
@@ -182,5 +207,5 @@ export function resolvePrompts(input: {
     }
   }
 
-  return current.edited ? current : buildPrompts(profile, agentName);
+  return current.edited ? current : buildPrompts(profile, agentName, language);
 }
