@@ -3,9 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { KeepYourNumber } from "@/components/public/illustrations";
 
 /**
- * The switching cost, answered before it is asked. No price here — there is
- * no pricing page yet (see lib/links.ts) — so this section sells the absence
- * of upheaval instead: same number, same habits, knowledge already gathered.
+ * The switching cost, answered before it is asked. No price here — that is the
+ * pricing page's job (components/public/Pricing.tsx) — so this section sells
+ * the absence of upheaval: same number, same habits, knowledge already gathered.
  */
 export function GoLive({
   agentName,

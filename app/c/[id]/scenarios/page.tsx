@@ -94,7 +94,11 @@ export default async function ScenariosPage({ params }: Props) {
             and your booking rules. Or go back and hear the receptionist again.
           </p>
           <div className="flex flex-col items-center gap-3">
-            <ContactButtons mailto={mailto} className="justify-center" />
+            <ContactButtons
+              mailto={mailto}
+              customerId={customer.id}
+              className="justify-center"
+            />
             <Button
               variant="ghost"
               nativeButton={false}

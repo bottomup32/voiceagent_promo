@@ -167,6 +167,7 @@ export function DemoCall({
           allowance={allowance}
           remaining={remaining}
           mailto={mailto}
+          customerId={customerId}
           callRef={callRef}
         />
 
@@ -253,7 +254,7 @@ export function DemoCall({
                 turned on.
               </p>
               <div className="flex justify-center">
-                <ContactButtons mailto={mailto} />
+                <ContactButtons mailto={mailto} customerId={customerId} />
               </div>
             </CardContent>
           </Card>

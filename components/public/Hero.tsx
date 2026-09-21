@@ -27,6 +27,7 @@ type HeroProps = {
   /** Seconds of demo time left once the current call is counted. */
   remaining: number;
   mailto: string;
+  customerId: string;
   /** Wraps the call button so the page can tell when it has scrolled away. */
   callRef: RefObject<HTMLDivElement | null>;
 };
@@ -112,6 +113,7 @@ export function Hero({
   allowance,
   remaining,
   mailto,
+  customerId,
   callRef,
 }: HeroProps) {
   const title = headline({ template: HEADLINE, name, fallback: HEADLINE_FALLBACK });
@@ -154,7 +156,7 @@ export function Hero({
               We will open it back up — or skip ahead and talk about putting{" "}
               {agentName} on your real line.
             </p>
-            <ContactButtons mailto={mailto} />
+            <ContactButtons mailto={mailto} customerId={customerId} />
           </div>
         ) : (
           <>
@@ -187,7 +189,7 @@ export function Hero({
               {ended ? (
                 <div className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-4">
                   <p className="ta-label-1">That was {agentName}. Want it on your line?</p>
-                  <ContactButtons mailto={mailto} />
+                  <ContactButtons mailto={mailto} customerId={customerId} />
                 </div>
               ) : failed ? null : (
                 <TryAsking questions={questions} />

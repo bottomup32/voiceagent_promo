@@ -65,6 +65,20 @@ Two views, one codebase:
   entries marked `live` are true of the demo; the others are the pitch, and the
   copy must never imply a prospect can dial in and have a booking taken.
 
+  `/pricing` and `/c/[id]/pricing` are the same price list
+  (`components/public/Pricing.tsx`); the second knows the way back to the demo
+  and whose demo the email is about. `lib/pricing.ts` holds the plans and the
+  estimator's arithmetic. Only three numbers per plan are public — monthly
+  price, included minutes, overage per minute — and the margins stay in the
+  spreadsheet. The two free weeks are a limited-time launch offer with no end
+  date written down, so the page gives none. The plans differ by minutes alone,
+  so the page describes features and gates none of them; the dashboard
+  (transcripts, call analytics) is on every plan. The one charge outside the
+  plan price is a custom connection, quoted separately — schedule connections
+  are "mostly free", and the page names no tool as free. The Pricing button
+  opens a new tab, because a call may be live on the page it sits on.
+  `NEXT_PUBLIC_PRICING_URL` is now only an override.
+
   Three tabs: Knowledge, Schedule, Prompt. Sources is not one of them — the
   research is the working-out, so it sits at the foot of the Knowledge it
   produced as a reference (`SourcesPanel` in `compact` mode: the links, with the
