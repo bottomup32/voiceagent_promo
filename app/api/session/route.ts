@@ -14,6 +14,7 @@ import { demoAllowance, inFlightCalls } from "@/lib/analytics";
 import { DEFAULT_DEMO_MINUTES } from "@/lib/types";
 import { isAdminRequest } from "@/lib/auth";
 import { callClock, safeTimeZone } from "@/lib/call-clock";
+import { CALL_MAX_SEC, callLimitSec } from "@/lib/call-limits";
 import { OpenAIError, createLiveSession } from "@/lib/openai";
 import type { CallLog } from "@/lib/types";
 
@@ -133,6 +134,11 @@ export async function POST(request: Request) {
   // not be able to claim one.
   const isTest = body.isTest === true && (await isAdminRequest());
 
+  // How long this one call may run. The browser hangs up when it is reached,
+  // so a demo cannot be overrun by one long call, and a test call is still
+  // held to the ten minute ceiling.
+  let maxSec = CALL_MAX_SEC;
+
   // The demo is a fixed amount of time per prospect. Running out is the nudge:
   // the page then offers the contact form instead of the call button. An admin
   // test call does not spend it, which is why this runs after isTest.
@@ -163,6 +169,7 @@ export async function POST(request: Request) {
         { status: 403 },
       );
     }
+    maxSec = callLimitSec(allowance.remainingSec);
   }
 
   // The record is written before OpenAI is asked for a session, so that the
@@ -254,6 +261,7 @@ export async function POST(request: Request) {
       sessionId: session.id,
       sdp: session.sdp,
       greeting: customer.prompts.greeting,
+      maxSec,
     });
   } catch (error) {
     // No session means no call. Take the reservation back rather than leaving

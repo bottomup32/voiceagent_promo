@@ -166,6 +166,14 @@ Facts that shape the code:
 - The billed duration is `session.closed.usage.seconds`, not a local timer.
   Hang-up sends `session.close` and waits for `session.closed` with a timeout.
 - Leaving the page reports the call as abandoned through `navigator.sendBeacon`.
+- A call ends itself too (`lib/call-limits.ts`, run on the hook's one-second
+  tick), because a caller who walked away used to leave it listening until the
+  tab closed. It ends at its limit — the demo's remaining allowance, which
+  `/api/session` returns as `maxSec`, and never more than ten minutes — with
+  the receptionist told to wrap up thirty seconds before; and after a minute
+  of caller silence, with a "still there?" at forty seconds. The receptionist
+  must also have been quiet for a few seconds, so an answer is not cut off.
+  The end reason (`time_limit`, `idle`) is stored on the call.
 - The prompts are stored, so they cannot hold a date. `/api/session` appends
   `callClock()` (`lib/call-clock.ts`) to both instructions per call: today, the
   next seven days written out one by one — a model asked to work out a weekday

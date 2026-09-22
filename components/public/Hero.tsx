@@ -188,6 +188,13 @@ export function Hero({
             <div className={rise(3)}>
               {ended ? (
                 <div className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-4">
+                  {call.endedBy ? (
+                    <p className="ta-caption-1 text-muted-foreground">
+                      {call.endedBy === "time_limit"
+                        ? "The call ended at the demo's time limit."
+                        : "The call ended after a minute with nobody on the line."}
+                    </p>
+                  ) : null}
                   <p className="ta-label-1">That was {agentName}. Want it on your line?</p>
                   <ContactButtons mailto={mailto} customerId={customerId} />
                 </div>
