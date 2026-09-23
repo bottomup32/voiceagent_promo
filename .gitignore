@@ -46,3 +46,6 @@ next-env.d.ts
 /data
 .env.local
 .gstack/
+
+# prompt eval runs (evals/prompts.eval.ts)
+/evals/results/

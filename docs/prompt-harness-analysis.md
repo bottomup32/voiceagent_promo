@@ -9,6 +9,36 @@
 
 ---
 
+## 진행 상태 (2026-09-23 업데이트)
+
+아래 분석을 바탕으로 한 1차 개발을 마쳤다.
+
+| 항목 | 상태 | 커밋 / 위치 |
+|---|---|---|
+| B1–B5 버그 | 완료 | `lib/prompt.ts` (`city`, `withArticle`, `backendProfile`), `lib/use-cases.ts` (`categoryMentions`), `lib/call-clock.ts` (`ordinal`) |
+| 가이드 구조 (Backchannel / Interruption / Delegation / Unclear audio / Honesty and escalation) | 완료 | `buildLivePrompt`, `buildBackendPrompt`, `PROMPT_VERSION = 5` |
+| 데모 고지(예약·메시지), AI 여부 질문, 응급 안내, 역할 변경 요청 | 완료 | 두 프롬프트 모두 |
+| 업종별 안전 규칙(의료 / 법률·금융 / 음식 알레르기, 최대 2줄) | 완료 | `safetyLines()` |
+| 짧은 FAQ를 음성 프롬프트에 (최대 5개, 답 140자 이하) | 완료 | `faqLines()` |
+| 길이 예산 테스트 | 완료 | `tests/prompt-budget.test.ts` (음성 규칙 3,900자 이하, 백엔드 규칙 1,200자 이하, 업종별 2줄 이하) |
+| 평가 스크립트 (시나리오 20개 × fixture 5개, 40행) | 완료, **아직 실행 안 함** | `evals/`, `vitest.eval.config.ts`. `OPENAI_API_KEY`가 필요한데 개발 환경에 없었음 |
+| function tools (P4) | 이번 범위 밖 | — |
+
+사용자가 정한 것: 톤은 모든 업종에서 밝고 업비트하게 유지, AI 여부는 물으면 솔직하게, 예약할 때 데모라는 사실을 통화 중에 밝힘.
+
+남은 확인 사항 🔍
+- 평가를 **변경 전과 변경 후**에 각각 한 번씩 돌려 비교할 것. 변경 전 기준점은 프롬프트 파일만 되돌려서 잡는다(평가 코드는 `buildPrompts`와 `callClock`만 쓴다):
+  ```bash
+  git checkout 5ab48b3 -- lib/prompt.ts lib/call-clock.ts lib/use-cases.ts
+  npx vitest run -c vitest.eval.config.ts     # 기준점 → evals/results/
+  git checkout HEAD -- lib/prompt.ts lib/call-clock.ts lib/use-cases.ts
+  npx vitest run -c vitest.eval.config.ts     # 변경 후
+  ```
+- 음성 프롬프트가 약 1.7k자에서 약 3.5k자(규칙만)로 늘었다. 가이드가 권하는 "짧게"와 균형이 맞는지, 첫 응답 지연이 실제 통화에서 늘었는지 확인할 것.
+- "데모라고 한 번 말하기"가 실제 GPT-Live 통화에서 과하거나 부족하지 않은지 들어볼 것.
+
+---
+
 ## 0. 요약
 
 | 질문 | 답 (확신도) |

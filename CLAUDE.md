@@ -14,6 +14,7 @@ npx tsc --noEmit                 # typecheck
 npx vitest run                   # all tests
 npx vitest run tests/maps.test.ts          # one file
 npx vitest run -t "keeps the blank lines"  # one test by name
+npx vitest run -c vitest.eval.config.ts    # prompt evals: real models, costs money
 ```
 
 There is no test script in `package.json`; call `vitest` directly. Tests are plain
@@ -259,6 +260,36 @@ bumping `PROMPT_VERSION`: `lib/store.ts` rebuilds unedited prompts on read when
 it sees an older version, and leaves edited ones alone. The prompts tell the
 receptionist to follow the caller's language; like accent, that is not a
 per-customer setting.
+
+The voice prompt is laid out under the headings the GPT-Live prompting guide
+asks for (backchannel, interruption and delegation policy, unclear audio), and
+it keeps the business's facts and short researched FAQs in it on purpose, so
+the common questions need no hand-over. The backend gets the profile as JSON
+without the rating, the review summary or coordinates: the receptionist has no
+business volunteering a complaint, and the backend prompt is shown to the
+business on its own page. Both say a booking or message is a demo and never
+call one confirmed. Tone is the same for every business; the only thing that
+varies by kind is `safetyLines()` — no medical advice for a clinic, no legal or
+financial advice for an office, no allergy promise for a restaurant — and there
+are never more than two of those. `categoryMentions()` in `lib/use-cases.ts`
+matches category words whole (stems end in `*`), because substrings made a
+barber shop a bar.
+
+The prompt grows only for a reason. A new rule needs a safety case, or a gap
+that `gapRollup()` shows on at least two prospects and three calls, and it
+comes with a scenario in `evals/scenarios.ts`; one business's quirk goes in its
+profile (`policies.other`, FAQs), not the template. `tests/prompt-budget.test.ts`
+caps the voice rules, the backend rules and the per-kind lines, and checks five
+fixture businesses (`evals/fixtures.ts`) for the required sections. Raising a
+cap is a decision for the diff that does it.
+
+`npx vitest run -c vitest.eval.config.ts` runs the scenarios against real
+models (needs `OPENAI_API_KEY`, read from `.env.local` too; skipped without it)
+and writes `evals/results/*.json`. The backend rows use the prompt exactly as
+`/api/session` sends it. The live rows run the voice prompt on a text model,
+which shows whether the instructions are clear and not what GPT-Live will do
+on a call. Run it before and after a prompt change, across every fixture. The
+scenario set is fixed; do not edit one to make it pass.
 
 ## Storage
 
