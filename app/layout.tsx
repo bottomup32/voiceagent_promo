@@ -11,7 +11,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" suppressHydrationWarning className="h-full">
-      <body className="min-h-full">
+      {/*
+        Browser extensions (Feedly Mini, Grammarly…) stamp attributes on the
+        body before React hydrates. Only this element's own attributes are
+        exempted; its children are still checked.
+      */}
+      <body className="min-h-full" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           {children}
           <Toaster position="bottom-right" />
