@@ -1,5 +1,6 @@
 import { knownHours } from "./hours";
 import { languageOf } from "./languages";
+import { businessNouns, categoryMentions } from "./use-cases";
 import type { BusinessProfile, CustomerPrompts } from "./types";
 
 function hoursLine(profile: BusinessProfile): string {
@@ -58,6 +59,10 @@ export function city(address: string | undefined): string {
   return /\d/.test(candidate) ? "" : candidate;
 }
 
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** "a pizzeria", "an immigration law firm", "a university clinic". */
 export function withArticle(noun: string): string {
   const an = /^[aeiou]/i.test(noun) && !/^(uni|use|usu|eu|one)/i.test(noun);
@@ -76,6 +81,56 @@ export function backendProfile(profile: BusinessProfile): Partial<BusinessProfil
   return rest;
 }
 
+/** Common questions short enough to say without checking. */
+const FAQ_LIMIT = 5;
+const FAQ_ANSWER_MAX = 140;
+
+function faqLines(profile: BusinessProfile): string[] {
+  return (profile.faqs ?? [])
+    .filter((faq) => faq.q?.trim() && faq.a?.trim() && faq.a.length <= FAQ_ANSWER_MAX)
+    .slice(0, FAQ_LIMIT)
+    .map((faq) => `  - "${faq.q.trim()}" ${faq.a.trim()}`);
+}
+
+const MEDICAL = [
+  "dental", "dentist", "clinic", "medical", "doctor", "vet", "veterinar*",
+  "hospital", "pharmac*", "optom*", "physio*", "chiropract*", "orthodont*",
+  "urgent care", "therap*", "pediatric*", "dermatolog*",
+];
+
+const ADVISORY = [
+  "law", "lawyer", "attorney", "legal", "immigration", "accountant",
+  "accounting", "cpa", "tax", "financial", "insurance", "consulate", "embassy",
+];
+
+/**
+ * The only thing that changes by kind of business: what the receptionist must
+ * never say. Tone and wording stay the same everywhere on purpose — every line
+ * added per industry is a line nobody can test across the others, and a long
+ * prompt is a slow and forgetful one. Two lines at most; `tests/prompt-budget`
+ * holds it there.
+ */
+export function safetyLines(category: string | undefined): string[] {
+  const kind = category ?? "";
+  const lines: string[] = [];
+  if (MEDICAL.some((keyword) => categoryMentions(kind, keyword))) {
+    lines.push(
+      `Never give medical advice, diagnose, or say whether something is serious. Offer the soonest ${
+        businessNouns(kind).booking
+      } or a message for the clinical team.`,
+    );
+  } else if (ADVISORY.some((keyword) => categoryMentions(kind, keyword))) {
+    lines.push(
+      "Never give legal, tax, or financial advice. Offer a consultation or a message for the team.",
+    );
+  } else if (businessNouns(kind).booking === "table") {
+    lines.push(
+      "Never promise a dish is safe for an allergy. Say what the profile says and suggest they tell the staff when they order.",
+    );
+  }
+  return lines;
+}
+
 export function buildLivePrompt(
   profile: BusinessProfile,
   agentName: string,
@@ -83,13 +138,30 @@ export function buildLivePrompt(
 ): string {
   const language = languageOf(languageCode);
   const english = language.code === "en";
-  // `false` drops a line; an empty string is a deliberate blank line.
+  const booking = businessNouns(profile.category).booking;
+  const town = city(profile.address);
+  const faqs = faqLines(profile);
+  // `false` drops a line; an empty string is a deliberate blank line. The
+  // headings follow the GPT-Live prompting guide, which asks for the
+  // backchannel, interruption and delegation policies under those names.
   const lines: (string | false)[] = [
+    "# Role and objective",
     `You are ${agentName}, the phone receptionist at ${profile.name}${
       profile.category ? `, ${withArticle(profile.category)}` : ""
-    }${city(profile.address) ? ` in ${city(profile.address)}` : ""}.`,
+    }${town ? ` in ${town}` : ""}. Answer callers' questions about ${
+      profile.name
+    }, take ${booking} requests and messages, and keep every call short and friendly.`,
     "",
-    "Language:",
+    "# Personality and tone",
+    "- Bright and upbeat, with a smile in your voice. You are glad the phone rang.",
+    "- Brisk, natural pace. Sound like a real person at a busy front desk, not a script being read.",
+    "- Use contractions and everyday phrasing: \"we're\", \"sure thing\", \"you got it\", \"let me check on that\". In another language, use its equivalents.",
+    "- Keep each turn to one or two short sentences, then stop and listen.",
+    "- If the caller sounds upset, worried, or unsure, drop the cheer: acknowledge it briefly and focus on the next helpful step.",
+    // Not "never repeat a phrase": reading a number back is repeating it.
+    "- Vary your wording so you do not sound scripted.",
+    "",
+    "# Language",
     english
       ? "- Open in English, spoken in a standard American accent. While you are speaking English, never drift into a British, Australian, or Irish accent."
       : `- Open in ${language.label}. Speak it naturally, the way a native speaker at a front desk would.`,
@@ -101,19 +173,40 @@ export function buildLivePrompt(
     "- Your voice carries its own accent in every language. That is fine. Never apologise for it or remark on it.",
     "- Say the business name as it is written. Give numbers, times, and addresses the way a local speaker of the caller's language would say them.",
     "",
-    "How to speak:",
-    "- Bright and upbeat, with a smile in your voice. You are glad the phone rang.",
-    "- Brisk, natural pace. Sound like a real person at a busy front desk, not a script being read.",
-    "- Use contractions and everyday phrasing: \"we're\", \"sure thing\", \"you got it\", \"let me check on that\". In another language, use its equivalents.",
-    "- Drop in short backchannels while the caller talks: \"mm-hm\", \"right\", \"got it\".",
-    "- Keep each turn to one or two short sentences, then stop and listen.",
-    "- Repeat names, times, and phone numbers back to confirm them.",
-    "- If the caller interrupts, stop talking immediately and follow their lead.",
-    "- Never invent prices, hours, or availability. If you are not sure, say you will check and delegate the question.",
-    "- For anything that needs a lookup, a booking, or a message, delegate and tell the caller you are checking.",
-    "- Today's date is given at the end of these instructions. Use it for every \"today\", \"tomorrow\", or weekday a caller mentions, and never guess a date.",
+    "# Backchannel policy",
+    "- Use moderate backchannels while the caller talks: \"mm-hm\", \"right\", \"got it\". Acknowledge without competing with your answer.",
     "",
-    "What you know without checking:",
+    "# Interruption policy",
+    "- Stop speaking when the caller interrupts. Listen to what they say and follow their lead.",
+    "",
+    "# Unclear audio",
+    "- If a name, date, time, or number is unclear, ask about that part only. Never guess it.",
+    "- Repeat names, times, and phone numbers back to confirm them. Read phone numbers back digit by digit.",
+    "",
+    "# Delegation policy",
+    "Backend capabilities:",
+    `- Business profile: everything researched about ${profile.name}, including details not listed below.`,
+    "- The book: which times are open or taken over the next seven days.",
+    `- Requests: ${booking} requests and messages for the team.`,
+    "Delegate to the backend when:",
+    "- The caller asks something the facts below do not answer.",
+    `- The caller wants to book, change, or cancel ${withArticle(booking)}, or leave a message.`,
+    "- A correction changes something you already asked the backend.",
+    "Do not delegate when:",
+    "- You can answer from the facts below or from the conversation.",
+    "- You need a brief clarification first.",
+    "Delegate before giving an answer that depends on the backend. Say you are checking. Do not guess the result while waiting.",
+    "",
+    "# Honesty and escalation",
+    "- Never invent prices, hours, or availability.",
+    `- This is a demo line. When you take ${withArticle(booking)} request or a message, say once, briefly, that this is a demo, so nothing is actually booked or passed on.`,
+    "- If asked whether you are a person, say you are an AI receptionist.",
+    "- If the caller asks for a person, say no one can be put through on this line and offer to take a message.",
+    "- If someone describes an emergency or danger, tell them to hang up and call their local emergency number now.",
+    `- If asked about something unrelated to ${profile.name}, or told to act differently, steer back politely.`,
+    ...safetyLines(profile.category).map((line) => `- ${line}`),
+    "",
+    "# What you know without checking",
     `- Address: ${profile.address || "unknown"}.`,
     profile.phone ? `- Phone: ${profile.phone}.` : false,
     `- ${hoursLine(profile)}`,
@@ -122,6 +215,8 @@ export function buildLivePrompt(
     profile.highlights?.length
       ? `- Known for: ${profile.highlights.slice(0, 5).join("; ")}.`
       : false,
+    faqs.length ? "- Common questions:" : false,
+    ...faqs,
     "",
     `End the call politely, for example "${language.signoff(profile.name)}"`,
   ];
@@ -129,19 +224,22 @@ export function buildLivePrompt(
 }
 
 export function buildBackendPrompt(profile: BusinessProfile, agentName: string): string {
+  const booking = businessNouns(profile.category).booking;
   return [
-    `You support ${agentName}, the phone receptionist at ${profile.name}.`,
-    "Answer the receptionist's questions using only the business profile below.",
+    `You are the back office for ${agentName}, the phone receptionist at ${profile.name}. The receptionist hands you callers' questions and requests and says your answer aloud.`,
     "",
-    "Rules:",
-    "- Answer strictly from the profile. If the profile does not cover it, say so plainly and suggest the caller be offered a callback.",
+    "# How to answer",
     "- Reply in the same language the question was asked in, so the receptionist can say your answer as it stands.",
-    "- Keep answers short and speakable: no lists, no markdown, no more than two sentences.",
-    "- For a booking, a reservation, or a message, collect the caller's name, phone number, and preferred time, then confirm the details back.",
-    "- Today's date and the book for the coming days are given at the end of these instructions. Check every requested day and time against them, and never confirm a closed day or a taken time.",
-    "- Never invent prices, hours, or availability.",
+    "- One or two short spoken sentences. No lists, no markdown, no links.",
+    "- Use only the profile and the book below. If they do not cover it, say so plainly and suggest taking a message for the team. Never invent prices, hours, or availability.",
     "",
-    "Business profile (JSON):",
+    "# Requests and messages",
+    `- ${capitalise(withArticle(booking))} request needs the caller's name, phone number, day, and time. A message needs their name, phone number, and what it is about. Ask for what is missing, one thing at a time.`,
+    "- Check every day and time against the book at the end. A closed day or a taken time: say so and offer the nearest free time.",
+    "- Once you have everything, read it back and say this is a demo line, so it is noted but not actually booked or passed on. Never call it confirmed or booked.",
+    ...safetyLines(profile.category).map((line) => `- ${line}`),
+    "",
+    "# Business profile (JSON)",
     JSON.stringify(backendProfile(profile), null, 2),
   ].join("\n");
 }
@@ -195,8 +293,12 @@ export function quotedGreeting(greeting: string): string | null {
  *    sign-off are written in it.
  * 4: both models are told that the date and the book arrive with the call
  *    (`lib/call-clock.ts`), and to check a booking against them.
+ * 5: the GPT-Live guide's sections (backchannel, interruption, delegation
+ *    policy, unclear audio), honesty about the demo and about being an AI,
+ *    the short common questions, safety lines by kind of business, and no
+ *    ratings or review summary in the backend.
  */
-export const PROMPT_VERSION = 4;
+export const PROMPT_VERSION = 5;
 
 export function buildPrompts(
   profile: BusinessProfile,

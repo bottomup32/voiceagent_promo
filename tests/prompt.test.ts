@@ -4,6 +4,7 @@ import {
   city,
   quotedGreeting,
   resolvePrompts,
+  safetyLines,
   spokenGreeting,
   withArticle,
 } from "../lib/prompt";
@@ -28,13 +29,13 @@ describe("buildPrompts", () => {
   const prompts = buildPrompts(profile, "Alex");
 
   it("keeps the blank lines that separate sections", () => {
-    expect(prompts.live).toContain("\n\nHow to speak:");
-    expect(prompts.live).toContain("\n\nWhat you know without checking:");
+    expect(prompts.live).toContain("\n\n# Personality and tone\n");
+    expect(prompts.live).toContain("\n\n# What you know without checking\n");
   });
 
-  it("puts the agent, business, and city in the first line", () => {
-    expect(prompts.live.split("\n")[0]).toBe(
-      "You are Alex, the phone receptionist at Joe's Pizza, a pizzeria in New York.",
+  it("puts the agent, business, and city in the opening sentence", () => {
+    expect(prompts.live.split("\n")[1]).toMatch(
+      /^You are Alex, the phone receptionist at Joe's Pizza, a pizzeria in New York\. /,
     );
   });
 
@@ -71,6 +72,70 @@ describe("buildPrompts", () => {
   });
 });
 
+describe("the guide's policies", () => {
+  const { live, backend } = buildPrompts(profile, "Alex");
+
+  it("says what the backend can do, when to hand over, and when not to", () => {
+    expect(live).toContain("Backend capabilities:");
+    expect(live).toContain("Delegate to the backend when:");
+    expect(live).toContain("Do not delegate when:");
+    expect(live).toContain("Do not guess the result while waiting.");
+  });
+
+  it("uses this business's word for a booking", () => {
+    expect(live).toContain("book, change, or cancel a table");
+    expect(buildPrompts({ ...profile, category: "dental clinic" }, "Alex").live).toContain(
+      "book, change, or cancel an appointment",
+    );
+  });
+
+  it("asks about the part it did not catch instead of guessing", () => {
+    expect(live).toContain("ask about that part only. Never guess it.");
+  });
+
+  it("is honest that this is a demo, and an AI", () => {
+    expect(live).toContain("say once, briefly, that this is a demo");
+    expect(live).toContain("say you are an AI receptionist");
+    expect(backend).toContain("Never call it confirmed or booked.");
+    expect(backend).not.toContain("confirm the details back");
+  });
+
+  it("sends an emergency to the emergency number, whatever the business", () => {
+    expect(live).toContain("call their local emergency number now");
+  });
+
+  it("answers the short common questions without checking, and only those", () => {
+    expect(live).toContain('"Do you deliver?" Through delivery apps.');
+    const long = buildPrompts(
+      { ...profile, faqs: [{ q: "Tell me everything", a: "x".repeat(300) }] },
+      "Alex",
+    );
+    expect(long.live).not.toContain("Common questions:");
+  });
+});
+
+describe("safetyLines", () => {
+  it("keeps a clinic from giving medical advice", () => {
+    expect(safetyLines("Dental clinic")[0]).toContain("Never give medical advice");
+    expect(safetyLines("Veterinary hospital")[0]).toContain("Never give medical advice");
+  });
+
+  it("keeps a law or accounting office from giving advice", () => {
+    expect(safetyLines("Immigration law firm")[0]).toContain("Never give legal, tax, or financial advice");
+    expect(safetyLines("CPA")[0]).toContain("financial advice");
+  });
+
+  it("keeps a restaurant from promising a dish is allergy-safe", () => {
+    expect(safetyLines("Italian restaurant")[0]).toContain("allergy");
+  });
+
+  it("adds nothing for everyone else", () => {
+    expect(safetyLines("Barber shop")).toEqual([]);
+    expect(safetyLines("Lawn care")).toEqual([]);
+    expect(safetyLines(undefined)).toEqual([]);
+  });
+});
+
 describe("city", () => {
   it("reads the town off a US address, with or without the country", () => {
     expect(city("7 Carmine St, New York, NY 10014")).toBe("New York");
@@ -92,8 +157,8 @@ describe("city", () => {
       { ...profile, category: "immigration law firm", address: "서울특별시 강남구 테헤란로 123" },
       "Alex",
     );
-    expect(seoul.live.split("\n")[0]).toBe(
-      "You are Alex, the phone receptionist at Joe's Pizza, an immigration law firm.",
+    expect(seoul.live.split("\n")[1]).toMatch(
+      /^You are Alex, the phone receptionist at Joe's Pizza, an immigration law firm\. /,
     );
   });
 });
