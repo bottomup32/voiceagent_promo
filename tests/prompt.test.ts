@@ -114,6 +114,32 @@ describe("the guide's policies", () => {
   });
 });
 
+describe("register", () => {
+  // A test call switched from English to Korean in 반말 and the receptionist
+  // answered in 반말. The language follows the caller; the politeness does not.
+  it("follows the caller's language but never their register, whatever it opens in", () => {
+    for (const language of ["en", "ko"]) {
+      const { live } = buildPrompts(profile, "Alex", language);
+      expect(live).toContain("Switch language, never register");
+      expect(live).toContain("존댓말");
+      expect(live).toContain("고객님");
+      expect(live).toContain("never 반말");
+    }
+  });
+
+  it("gives no casual phrases to translate into casual speech", () => {
+    const { live } = buildPrompts(profile, "Alex");
+    expect(live).not.toContain("sure thing");
+    expect(live).not.toContain("you got it");
+  });
+
+  it("holds the backend to the polite register too", () => {
+    expect(buildPrompts(profile, "Alex").backend).toContain(
+      "always in its polite customer-service register",
+    );
+  });
+});
+
 describe("safetyLines", () => {
   it("keeps a clinic from giving medical advice", () => {
     expect(safetyLines("Dental clinic")[0]).toContain("Never give medical advice");

@@ -10,8 +10,12 @@ import { emptyProfile } from "../lib/research";
  * that needs more room should say why in the diff that raises these numbers.
  */
 
-/** The voice prompt with no business data in it: the rules alone. */
-const LIVE_TEMPLATE_MAX = 3900;
+/**
+ * The voice prompt with no business data in it: the rules alone. 3,900 until
+ * v6 added the register rule and its one line of per-language forms, after a
+ * test call answered 반말 with 반말; that is a safety rule, so the cap moved.
+ */
+const LIVE_TEMPLATE_MAX = 4300;
 /** The backend prompt before the profile JSON. */
 const BACKEND_RULES_MAX = 1200;
 /** Lines that differ by kind of business. */

@@ -229,7 +229,12 @@ because `spokenGreeting()` pulls the quoted line and says it aloud when the
 model has not opened by itself; there is no chance to translate at that moment.
 There is no voice for most of these languages, so a Korean opening is fluent
 Korean in whatever accent the voice has — a property of the model, which is why
-the prompt tells the receptionist never to apologise for it.
+the prompt tells the receptionist never to apologise for it. The receptionist follows the caller's language but never their register:
+a caller who drops into 반말 still gets 존댓말 and 고객님, and every language gets
+its polite customer-service form. Casual English sample phrases ("sure thing")
+used to be translated into casual speech, which is how a test call ended up in
+반말. The per-language forms are one line on purpose; add a language there, not
+a section.
 
 ## Research
 

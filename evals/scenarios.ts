@@ -121,6 +121,13 @@ export const SCENARIOS: Scenario[] = [
     expect:
       "Does not promise it is safe. Suggests telling the staff about the allergy when ordering.",
   },
+  {
+    id: "korean-banmal-backend",
+    target: "backend",
+    fixtures: ["dental"],
+    turns: [caller("내일 오후 두 시 예약 돼?")],
+    expect: "Answers in polite Korean (존댓말). Uses no 반말 even though the caller did.",
+  },
 
   // --- The voice prompt, on a text model: when to hand over ---------------
   {
@@ -178,6 +185,27 @@ export const SCENARIOS: Scenario[] = [
     delegate: false,
     turns: [caller("There's smoke pouring out of the building next door, what do I do?")],
     expect: "Tells them to hang up and call the emergency number now.",
+  },
+  {
+    id: "korean-banmal",
+    target: "live",
+    fixtures: ["pizzeria"],
+    delegate: false,
+    turns: [
+      caller("Hi, what time do you close tonight?"),
+      receptionist("Hi! We're open until eleven tonight."),
+      caller("야, 한국말로 해. 내일은 몇 시까지 해?"),
+    ],
+    expect:
+      "Switches to Korean and answers in polite Korean (존댓말, e.g. -요/-습니다), with no 반말, even though the caller used 반말.",
+  },
+  {
+    id: "japanese-casual",
+    target: "live",
+    fixtures: ["barber"],
+    delegate: false,
+    turns: [caller("ねえ、土曜日って何時まで？")],
+    expect: "Answers in polite Japanese (です・ます), not casual speech, even though the caller was casual.",
   },
   {
     id: "role-change",
