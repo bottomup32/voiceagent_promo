@@ -118,7 +118,9 @@ Two views, one codebase:
   Each prospect gets `demoMinutes` (default 10) of call time, counted by
   `demoAllowance()` over the seconds their calls actually billed. `/api/session`
   refuses past it and the page swaps the call button for the contact card;
-  raising the number in the Share tab opens it back up. Admin test calls are
+  "Demo time" (`AddDemoTimeMenu`: customer header, Share tab, list row menu)
+  opens it back up — it sends `addDemoMinutes`, added on the server to what is
+  stored, so unsaved edits on the page are left alone. Admin test calls are
   `isTest` and never spend it.
 
 ## Two providers, two jobs

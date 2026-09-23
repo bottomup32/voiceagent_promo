@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityTab } from "@/components/admin/ActivityTab";
+import { AddDemoTimeMenu } from "@/components/admin/AddDemoTimeMenu";
 import { KnowledgeEditor } from "@/components/admin/KnowledgeEditor";
 import { SchedulePanel } from "@/components/public/SchedulePanel";
 import { PromptEditor } from "@/components/admin/PromptEditor";
@@ -146,6 +147,17 @@ export default function CustomerDetailPage({
     }
   }
 
+  // Only the minutes are taken from the answer, so edits not yet saved stay in
+  // the draft rather than being replaced by the stored record.
+  function addedTime(customer: Customer) {
+    setDraft((current) => (current ? { ...current, demoMinutes: customer.demoMinutes } : current));
+    setData((current) =>
+      current
+        ? { ...current, customer: { ...current.customer, demoMinutes: customer.demoMinutes } }
+        : current,
+    );
+  }
+
   const stalled = draft ? isResearchStalled(draft) : false;
 
   if (!data || !draft) {
@@ -194,6 +206,11 @@ export default function CustomerDetailPage({
               />
               Live
             </label>
+            <AddDemoTimeMenu
+              customerId={id}
+              demoMinutes={draft.demoMinutes}
+              onAdded={addedTime}
+            />
             <Button variant="outline" onClick={() => research(false)} disabled={researching}>
               <RefreshCw className="size-4" />
               {researching ? "Researching" : "Re-research"}
@@ -344,6 +361,7 @@ export default function CustomerDetailPage({
                   customer={draft}
                   stats={stats}
                   onChange={(partial) => setDraft({ ...draft, ...partial })}
+                  onAddedTime={addedTime}
                 />
               </TabsContent>
             </Tabs>

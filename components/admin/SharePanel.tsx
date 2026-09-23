@@ -2,6 +2,7 @@
 
 import { Copy, ExternalLink, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { AddDemoTimeMenu } from "@/components/admin/AddDemoTimeMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,9 +16,10 @@ type Props = {
   customer: Customer;
   stats: CustomerStats;
   onChange: (partial: Partial<Customer>) => void;
+  onAddedTime: (customer: Customer) => void;
 };
 
-export function SharePanel({ customer, stats, onChange }: Props) {
+export function SharePanel({ customer, stats, onChange, onAddedTime }: Props) {
   const link = customerLink(customer.id);
   const subject = emailSubject(customer.profile.name);
   const body = emailBody(customer.profile.name, customer.contactName, link);
@@ -77,6 +79,11 @@ export function SharePanel({ customer, stats, onChange }: Props) {
               if (Number.isFinite(next)) onChange({ demoMinutes: Math.max(0, next) });
             }}
           />
+          <AddDemoTimeMenu
+            customerId={customer.id}
+            demoMinutes={customer.demoMinutes}
+            onAdded={onAddedTime}
+          />
           <span className="ta-caption-1 text-muted-foreground">
             {formatDuration(usedSec)} used of {minutes}:00
             {usedSec >= minutes * 60 ? " — spent, the call button is closed" : ""}
@@ -90,8 +97,9 @@ export function SharePanel({ customer, stats, onChange }: Props) {
         </div>
         <p className="ta-caption-1 text-muted-foreground">
           When this runs out the demo page stops offering the call and asks them
-          to get in touch. Raise the number here to let them carry on. Your own
-          test calls do not spend it.
+          to get in touch. Demo time adds minutes and saves straight away; the
+          number field sets the total and waits for Save. Your own test calls do
+          not spend it.
         </p>
       </div>
 

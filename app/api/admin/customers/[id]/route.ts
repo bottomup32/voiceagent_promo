@@ -3,7 +3,7 @@ import { jsonError } from "@/lib/api";
 import { assertWritableStore } from "@/lib/kv";
 import { deleteCustomer, getCustomer, saveCustomer } from "@/lib/store";
 import { listCalls, readEvents } from "@/lib/calls";
-import { computeStats } from "@/lib/analytics";
+import { computeStats, extendDemoMinutes } from "@/lib/analytics";
 import { listNotes } from "@/lib/crm";
 import { resolvePrompts } from "@/lib/prompt";
 import { languageOf } from "@/lib/languages";
@@ -14,7 +14,7 @@ import type {
   CustomerPrompts,
   CustomerStage,
 } from "@/lib/types";
-import { CUSTOMER_STAGES, LIVE_VOICES } from "@/lib/types";
+import { CUSTOMER_STAGES, DEFAULT_DEMO_MINUTES, LIVE_VOICES } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -68,6 +68,7 @@ export async function PATCH(request: Request, { params }: Params) {
     active: boolean;
     agentName: string;
     demoMinutes: number;
+    addDemoMinutes: number;
     stage: CustomerStage;
     lastContactedAt: string | null;
     followUpAt: string | null;
@@ -89,6 +90,13 @@ export async function PATCH(request: Request, { params }: Params) {
   }
   if (body.stage && !CUSTOMER_STAGES.includes(body.stage)) {
     return NextResponse.json({ error: "Unknown stage." }, { status: 400 });
+  }
+
+  if (
+    body.addDemoMinutes !== undefined &&
+    extendDemoMinutes(customer.demoMinutes, body.addDemoMinutes, DEFAULT_DEMO_MINUTES) === null
+  ) {
+    return NextResponse.json({ error: "Minutes to add must be positive." }, { status: 400 });
   }
 
   const next: Customer = {
@@ -116,10 +124,14 @@ export async function PATCH(request: Request, { params }: Params) {
     notes: body.notes !== undefined ? body.notes.trim() || undefined : customer.notes,
     active: body.active ?? customer.active,
     agentName: body.agentName?.trim() || customer.agentName,
+    // addDemoMinutes is the "Add time" menu and adds to what is stored; a
+    // plain demoMinutes is the Share tab's number field and sets it outright.
     demoMinutes:
-      typeof body.demoMinutes === "number" && Number.isFinite(body.demoMinutes)
-        ? Math.max(0, Math.round(body.demoMinutes))
-        : customer.demoMinutes,
+      body.addDemoMinutes !== undefined
+        ? extendDemoMinutes(customer.demoMinutes, body.addDemoMinutes, DEFAULT_DEMO_MINUTES)!
+        : typeof body.demoMinutes === "number" && Number.isFinite(body.demoMinutes)
+          ? Math.max(0, Math.round(body.demoMinutes))
+          : customer.demoMinutes,
     voice: body.voice ?? customer.voice,
     // An unrecognised code lands on English rather than leaving the receptionist
     // opening in a language nothing here knows how to greet in.

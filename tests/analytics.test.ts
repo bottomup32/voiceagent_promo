@@ -8,6 +8,7 @@ import {
   gapRollup,
   unreviewedCalls,
   demoAllowance,
+  extendDemoMinutes,
   distinctVisitors,
   engagement,
   inFlightCalls,
@@ -588,5 +589,18 @@ describe("the live session index", () => {
     expect(parseLiveMember("nonsense", now)).toBeNull();
     expect(parseLiveMember("cust|call|notanumber", now)).toBeNull();
     expect(parseLiveMember("cust|call|", now)).toBeNull();
+  });
+});
+
+describe("extendDemoMinutes", () => {
+  it("adds to what is stored, or to the default when nothing is", () => {
+    expect(extendDemoMinutes(10, 30, 10)).toBe(40);
+    expect(extendDemoMinutes(undefined, 10, 10)).toBe(20);
+  });
+
+  it("refuses anything that is not a positive number", () => {
+    for (const add of [0, -10, Number.NaN, Infinity, "30", undefined, null]) {
+      expect(extendDemoMinutes(10, add, 10)).toBeNull();
+    }
   });
 });
