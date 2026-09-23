@@ -20,6 +20,11 @@ describe("integrationGroupsFor", () => {
     expect(groups).toContain("video");
   });
 
+  it("never shows a barber OpenTable either", () => {
+    const groups = integrationGroupsFor(businessNouns("Barber shop").booking);
+    expect(groups).not.toContain("tables");
+  });
+
   it("only names groups that exist and have something in them", () => {
     for (const booking of ["table", "appointment", "pickup", "service visit"]) {
       for (const id of integrationGroupsFor(booking)) {

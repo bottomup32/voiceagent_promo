@@ -53,15 +53,31 @@ export type BusinessNouns = {
 type Bucket = BusinessNouns & { keywords: string[] };
 
 /**
+ * Whether a free-text category names this keyword. A keyword is a whole word,
+ * plural allowed; one ending in `*` is a stem and matches any word starting
+ * with it ("chiropract*" for chiropractor and chiropractic). Plain substrings
+ * made a barber shop a bar and a coworking space a spa.
+ */
+export function categoryMentions(category: string, keyword: string): boolean {
+  const stem = keyword.endsWith("*");
+  const word = (stem ? keyword.slice(0, -1) : keyword).replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const tail = stem ? "" : "(?:e?s)?(?!\\p{L})";
+  return new RegExp(`(?<!\\p{L})${word}${tail}`, "iu").test(category);
+}
+
+/**
  * Categories come from research as free text ("Italian Restaurant", "Family
- * Dental Clinic"), so match on substrings rather than an enum. The first bucket
+ * Dental Clinic"), so match on words rather than an enum. The first bucket
  * that matches wins, which is why the food words sit ahead of the retail ones.
  */
 const BUCKETS: Bucket[] = [
   {
     keywords: [
       "restaurant", "cafe", "café", "coffee", "bar", "pub", "pizzeria",
-      "bakery", "diner", "grill", "sushi", "bistro", "brewery", "eatery",
+      "bakery", "bakeries", "diner", "grill", "sushi", "bistro", "brewery", "eatery",
     ],
     booking: "table",
     statusQuestion: "is my order ready?",
@@ -77,8 +93,8 @@ const BUCKETS: Bucket[] = [
   {
     keywords: [
       "dentist", "dental", "clinic", "medical", "doctor", "salon", "spa",
-      "barber", "vet", "chiropract", "therapy", "therapist", "nail", "optom",
-      "physio", "massage", "orthodont",
+      "barber", "barbershop", "vet", "veterinar*", "chiropract*", "therap*",
+      "nail", "optom*", "physio*", "massage", "orthodont*",
     ],
     booking: "appointment",
     statusQuestion: "are my results back?",
@@ -94,8 +110,8 @@ const BUCKETS: Bucket[] = [
   },
   {
     keywords: [
-      "shop", "store", "retail", "boutique", "grocery", "pharmacy", "florist",
-      "hardware", "market", "outfitter", "supply",
+      "shop", "store", "retail", "boutique", "grocery", "groceries", "pharmac*",
+      "florist", "hardware", "market", "outfitter", "suppl*",
     ],
     booking: "pickup",
     statusQuestion: "is my order in?",
@@ -110,9 +126,9 @@ const BUCKETS: Bucket[] = [
   },
   {
     keywords: [
-      "plumb", "hvac", "electric", "roof", "landscap", "auto", "repair",
-      "cleaning", "moving", "contractor", "locksmith", "pest", "garage",
-      "detailing", "remodel",
+      "plumb*", "hvac", "electric*", "roof*", "landscap*", "auto*", "repair*",
+      "clean*", "moving", "mover", "contractor", "locksmith", "pest", "garage",
+      "detailing", "remodel*",
     ],
     booking: "service visit",
     statusQuestion: "how is the job going?",
@@ -146,10 +162,10 @@ const DEFAULT_NOUNS: BusinessNouns = {
  * on the neutral set rather than leaving a hole in the sentence.
  */
 export function businessNouns(category?: string): BusinessNouns {
-  const haystack = (category ?? "").toLowerCase();
+  const haystack = category ?? "";
   if (!haystack) return DEFAULT_NOUNS;
   const bucket = BUCKETS.find((candidate) =>
-    candidate.keywords.some((keyword) => haystack.includes(keyword)),
+    candidate.keywords.some((keyword) => categoryMentions(haystack, keyword)),
   );
   if (!bucket) return DEFAULT_NOUNS;
   return nouns(bucket);

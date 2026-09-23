@@ -3,6 +3,7 @@ import {
   callClock,
   dayFromKey,
   nextDays,
+  ordinal,
   safeTimeZone,
   zonedToday,
 } from "../lib/call-clock";
@@ -151,6 +152,19 @@ describe("callClock", () => {
 
   it("forbids working a weekday out by itself", () => {
     expect(clock).toContain("Never work out a weekday yourself");
+  });
+
+  it("gives tomorrow's real date as the example to say back", () => {
+    expect(clock).toContain('"tomorrow, Tuesday the 22nd"');
+    const thursday = callClock(new Date("2026-09-23T17:00:00Z"), LA, hours);
+    expect(thursday).toContain('"tomorrow, Thursday the 24th"');
+    expect(thursday).not.toContain("Tuesday the 22nd");
+  });
+
+  it("writes ordinals the way they are said", () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 31].map(ordinal)).toEqual([
+      "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "31st",
+    ]);
   });
 
   it("still gives the dates, and no book, when research found no hours", () => {

@@ -32,9 +32,48 @@ function policiesLine(profile: BusinessProfile): string {
   return parts.length ? `Policies: ${parts.join(". ")}.` : "";
 }
 
-function city(profile: BusinessProfile): string {
-  const segments = (profile.address || "").split(",").map((part) => part.trim());
-  return segments.length >= 2 ? segments[segments.length - 2] : profile.address || "";
+const COUNTRIES = new Set([
+  "usa", "us", "u.s.", "u.s.a.", "united states", "united states of america",
+  "canada", "uk", "united kingdom", "australia", "south korea", "korea",
+  "republic of korea", "대한민국", "한국", "japan", "日本",
+]);
+
+/**
+ * The town, for the first line, or nothing. An address is "street, city,
+ * state zip" often enough to read the city off the end, but not always: a
+ * country on the end, a UK postcode, or a Korean address with no commas at all
+ * gave "WA 98101" and the whole street. A segment with a digit in it is not a
+ * town, and a first line with no town is better than one with the wrong one.
+ */
+export function city(address: string | undefined): string {
+  const segments = (address || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  while (segments.length && COUNTRIES.has(segments[segments.length - 1].toLowerCase())) {
+    segments.pop();
+  }
+  if (segments.length < 2) return "";
+  const candidate = segments[segments.length - 2];
+  return /\d/.test(candidate) ? "" : candidate;
+}
+
+/** "a pizzeria", "an immigration law firm", "a university clinic". */
+export function withArticle(noun: string): string {
+  const an = /^[aeiou]/i.test(noun) && !/^(uni|use|usu|eu|one)/i.test(noun);
+  return `${an ? "an" : "a"} ${noun}`;
+}
+
+/**
+ * What the backend is handed. Ratings and the review summary stay out: the
+ * receptionist has no business volunteering "reviews mention long waits", and
+ * the backend prompt is shown to the business on its own demo page.
+ * Coordinates are for the map, not for a caller.
+ */
+export function backendProfile(profile: BusinessProfile): Partial<BusinessProfile> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { rating, reviewSummary, lat, lng, ...rest } = profile;
+  return rest;
 }
 
 export function buildLivePrompt(
@@ -47,8 +86,8 @@ export function buildLivePrompt(
   // `false` drops a line; an empty string is a deliberate blank line.
   const lines: (string | false)[] = [
     `You are ${agentName}, the phone receptionist at ${profile.name}${
-      profile.category ? `, a ${profile.category}` : ""
-    }${city(profile) ? ` in ${city(profile)}` : ""}.`,
+      profile.category ? `, ${withArticle(profile.category)}` : ""
+    }${city(profile.address) ? ` in ${city(profile.address)}` : ""}.`,
     "",
     "Language:",
     english
@@ -103,7 +142,7 @@ export function buildBackendPrompt(profile: BusinessProfile, agentName: string):
     "- Never invent prices, hours, or availability.",
     "",
     "Business profile (JSON):",
-    JSON.stringify(profile, null, 2),
+    JSON.stringify(backendProfile(profile), null, 2),
   ].join("\n");
 }
 

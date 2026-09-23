@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompts, quotedGreeting, resolvePrompts, spokenGreeting } from "../lib/prompt";
+import {
+  buildPrompts,
+  city,
+  quotedGreeting,
+  resolvePrompts,
+  spokenGreeting,
+  withArticle,
+} from "../lib/prompt";
 import type { BusinessProfile } from "../lib/types";
 
 const profile: BusinessProfile = {
@@ -61,6 +68,61 @@ describe("buildPrompts", () => {
 
   it("starts unedited", () => {
     expect(prompts.edited).toBe(false);
+  });
+});
+
+describe("city", () => {
+  it("reads the town off a US address, with or without the country", () => {
+    expect(city("7 Carmine St, New York, NY 10014")).toBe("New York");
+    expect(city("500 Pine St, Suite 200, Seattle, WA 98101, USA")).toBe("Seattle");
+    expect(city("1 Main St, Austin, TX, United States")).toBe("Austin");
+  });
+
+  // Each of these used to put a street, a postcode or a whole address where
+  // the town goes.
+  it("says nothing rather than something wrong", () => {
+    expect(city("서울특별시 강남구 테헤란로 123")).toBe("");
+    expect(city("10 Downing St, London SW1A 2AA, UK")).toBe("");
+    expect(city("1 Main St")).toBe("");
+    expect(city(undefined)).toBe("");
+  });
+
+  it("leaves the town out of the first line when it cannot find one", () => {
+    const seoul = buildPrompts(
+      { ...profile, category: "immigration law firm", address: "서울특별시 강남구 테헤란로 123" },
+      "Alex",
+    );
+    expect(seoul.live.split("\n")[0]).toBe(
+      "You are Alex, the phone receptionist at Joe's Pizza, an immigration law firm.",
+    );
+  });
+});
+
+describe("withArticle", () => {
+  it("picks a or an by the sound, not just the letter", () => {
+    expect(withArticle("pizzeria")).toBe("a pizzeria");
+    expect(withArticle("immigration law firm")).toBe("an immigration law firm");
+    expect(withArticle("Italian restaurant")).toBe("an Italian restaurant");
+    expect(withArticle("university clinic")).toBe("a university clinic");
+  });
+});
+
+describe("backendProfile", () => {
+  it("keeps ratings, reviews and coordinates away from the receptionist", () => {
+    const rated = buildPrompts(
+      {
+        ...profile,
+        rating: 3.1,
+        reviewSummary: "Reviews mention long waits.",
+        lat: 40.73,
+        lng: -74.0,
+      },
+      "Alex",
+    );
+    expect(rated.backend).not.toContain("long waits");
+    expect(rated.backend).not.toContain('"rating"');
+    expect(rated.backend).not.toContain('"lat"');
+    expect(rated.backend).toContain("Do you deliver?");
   });
 });
 
