@@ -22,7 +22,7 @@ export function slugify(name: string): string {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/['']/g, "")
+    .replace(/['’]/g, "")
     .split(/[^a-z0-9]+/)
     .filter((word) => word && !STOPWORDS.has(word));
 
