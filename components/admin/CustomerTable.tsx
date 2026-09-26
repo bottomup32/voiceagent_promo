@@ -149,6 +149,7 @@ export function CustomerTable({ customers, onChanged }: Props) {
       return [
         customer.profile.name,
         customer.label,
+        customer.code,
         customer.contactName,
         customer.contactEmail,
       ]
@@ -304,6 +305,7 @@ export function CustomerTable({ customers, onChanged }: Props) {
                   >
                     {customer.profile.name || "Unnamed"}
                   </Link>
+                  <span className="ta-caption-2 text-muted-foreground block font-mono">{customer.code ?? "—"}</span>
                   {customer.label ? (
                     <span className="ta-caption-1 text-muted-foreground block">
                       {customer.label}

@@ -20,17 +20,22 @@ import { StatusBadge } from "@/components/admin/shared";
 import {
   ENTRY_ICON,
   FOLLOW_UP_ICON,
+  PHASE_KIND,
+  PHASE_LABEL,
   STAGE_KIND,
   STAGE_LABEL,
   toDateValue,
 } from "@/components/admin/crm-shared";
+import { PHASE_TRANSITIONS, checklist } from "@/lib/lifecycle";
 import { timeline } from "@/lib/analytics";
 import { CUSTOMER_STAGES } from "@/lib/types";
 import type {
   CallLog,
   CrmNote,
   Customer,
+  CustomerPhase,
   CustomerStage,
+  LifecycleEvent,
   TrackEvent,
 } from "@/lib/types";
 
@@ -39,23 +44,28 @@ export function CrmTab({
   notes,
   events,
   calls,
+  lifecycle,
   onChange,
   onNoteAdded,
   onOpenCall,
+  onPhase,
 }: {
   customer: Customer;
   notes: CrmNote[];
   events: TrackEvent[];
   calls: CallLog[];
+  lifecycle: LifecycleEvent[];
   onChange: (partial: Partial<Customer>) => void;
   onNoteAdded: () => void;
   onOpenCall?: (callId: string) => void;
+  onPhase: (to: CustomerPhase) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
 
   const stage = customer.stage ?? "new";
-  const entries = timeline(notes, events, calls);
+  const phase = customer.phase ?? "demo";
+  const entries = timeline(notes, events, calls, lifecycle);
 
   async function addNote() {
     const text = draft.trim();
@@ -77,8 +87,34 @@ export function CrmTab({
     }
   }
 
+  const stageLocked = phase !== "demo" && phase !== "churned";
+
   return (
     <div className="space-y-6">
+      <div className="space-y-2 rounded-xl border p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="ta-caption-1 text-muted-foreground font-mono">{customer.code ?? "no code yet"}</span>
+          <StatusBadge kind={PHASE_KIND[phase]}>
+            {PHASE_LABEL[phase]}
+          </StatusBadge>
+          {PHASE_TRANSITIONS[phase].map((to) => (
+            <Button key={to} size="sm" variant="outline" onClick={() => onPhase(to)}>
+              {PHASE_LABEL[to]}
+            </Button>
+          ))}
+        </div>
+        {phase === "onboarding" ? (
+          <ul className="space-y-1">
+            {checklist(customer, {}).map((item) => (
+              <li key={item.id} className="ta-caption-1 flex items-center gap-2">
+                <span aria-hidden>{item.ok ? "✓" : "○"}</span>
+                <span className={item.ok ? "text-muted-foreground" : undefined}>{item.label}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="crm-stage" className="ta-label-1">
@@ -86,6 +122,7 @@ export function CrmTab({
           </Label>
           <Select
             value={stage}
+            disabled={stageLocked}
             onValueChange={(value) =>
               onChange({ stage: (value as CustomerStage) ?? "new" })
             }
@@ -102,7 +139,7 @@ export function CrmTab({
             </SelectContent>
           </Select>
           <p className="ta-caption-1 text-muted-foreground">
-            Yours to set. Nothing moves it on its own.
+            {stageLocked ? "Stays Won once onboarding starts." : "Yours to set. Nothing moves it on its own."}
           </p>
         </div>
 

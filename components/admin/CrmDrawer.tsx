@@ -14,12 +14,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { CrmTab } from "@/components/admin/CrmTab";
+import { PHASE_LABEL } from "@/components/admin/crm-shared";
 import { readJson } from "@/lib/http";
 import type {
   CallLog,
   CrmNote,
   Customer,
+  CustomerPhase,
   CustomerStats,
+  LifecycleEvent,
   TrackEvent,
 } from "@/lib/types";
 
@@ -29,6 +32,7 @@ type Payload = {
   calls: CallLog[];
   events: TrackEvent[];
   notes: CrmNote[];
+  lifecycle: LifecycleEvent[];
 };
 
 /**
@@ -93,6 +97,23 @@ export function CrmDrawer({
     }
   }
 
+  async function movePhase(to: CustomerPhase) {
+    if (!data) return;
+    try {
+      const response = await fetch(`/api/admin/customers/${data.customer.id}/phase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to }),
+      });
+      await readJson<{ customer: Customer }>(response);
+      toast.success(`Moved to ${PHASE_LABEL[to]}.`);
+      void load();
+      onSaved();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Could not move it.");
+    }
+  }
+
   const name = data?.customer.profile.name || data?.customer.businessName || "";
 
   return (
@@ -128,11 +149,13 @@ export function CrmDrawer({
                 notes={data.notes ?? []}
                 events={data.events ?? []}
                 calls={data.calls ?? []}
+                lifecycle={data.lifecycle ?? []}
                 onChange={(partial) => void save(partial)}
                 onNoteAdded={() => {
                   void load();
                   onSaved();
                 }}
+                onPhase={(to) => void movePhase(to)}
               />
             </>
           ) : error ? null : (

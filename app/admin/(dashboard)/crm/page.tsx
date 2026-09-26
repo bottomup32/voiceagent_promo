@@ -2,16 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActivityFeed } from "@/components/admin/ActivityFeed";
 import { CrmDrawer } from "@/components/admin/CrmDrawer";
 import { PipelineBoard } from "@/components/admin/PipelineBoard";
-import { FOLLOW_UP_ICON, STAGE_LABEL } from "@/components/admin/crm-shared";
+import { FOLLOW_UP_ICON, PHASE_LABEL, STAGE_LABEL } from "@/components/admin/crm-shared";
 import { PageHeader, StatCard } from "@/components/admin/shared";
-import { dueFollowUps, stageCounts, type FeedEntry } from "@/lib/analytics";
+import { dueFollowUps, phaseCounts, type FeedEntry } from "@/lib/analytics";
 import { readJson } from "@/lib/http";
-import type { CustomerStage, CustomerWithStats } from "@/lib/types";
+import type { CustomerPhase, CustomerStage, CustomerWithStats } from "@/lib/types";
 
 type Payload = { customers: CustomerWithStats[]; feed: FeedEntry[] };
 
@@ -62,6 +63,33 @@ export default function CrmPage() {
     }
   }
 
+  async function movePhase(customer: CustomerWithStats, to: CustomerPhase) {
+    try {
+      const response = await fetch(`/api/admin/customers/${customer.id}/phase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to }),
+      });
+      await readJson<{ customer: unknown }>(response);
+      toast.success(`Moved to ${PHASE_LABEL[to]}.`);
+      void load();
+    } catch (caught) {
+      // The route says why in words; show them as they are.
+      toast.error(caught instanceof Error ? caught.message : "Could not move it.");
+    }
+  }
+
+  async function assignCodes() {
+    try {
+      const response = await fetch("/api/admin/maintenance/codes", { method: "POST" });
+      const result = await readJson<{ assigned: number; repaired: number }>(response);
+      toast.success(`Gave ${result.assigned} customer${result.assigned === 1 ? "" : "s"} a code.`);
+      void load();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Could not assign codes.");
+    }
+  }
+
   if (!data) {
     return (
       <div className="space-y-4">
@@ -78,13 +106,12 @@ export default function CrmPage() {
   }
 
   const { customers, feed } = data;
-  const counts = stageCounts(customers);
   const due = dueFollowUps(customers);
   const overdueIds = new Set(due.map((customer) => customer.id));
   const hot = customers.filter((customer) => customer.heat.level === "hot");
-  const open = customers.filter(
-    (customer) => (customer.stage ?? "new") !== "won" && (customer.stage ?? "new") !== "lost",
-  );
+  const open = customers.filter((customer) => (customer.phase ?? "demo") === "demo");
+  const phases = phaseCounts(customers);
+  const uncoded = customers.filter((customer) => !customer.code).length;
 
   return (
     <>
@@ -94,11 +121,11 @@ export default function CrmPage() {
       />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <StatCard title="Open deals" value={String(open.length)} caption="Not won or lost" />
+        <StatCard title="Open deals" value={String(open.length)} caption="Still a demo" />
         <StatCard
-          title="Interested"
-          value={String(counts.interested)}
-          caption="Said yes to a conversation"
+          title="Onboarding"
+          value={String(phases.onboarding)}
+          caption="Setting up their own copy"
         />
         <StatCard
           title="Running hot"
@@ -111,6 +138,19 @@ export default function CrmPage() {
           caption={due.length ? "Past the date you set" : "Nothing overdue"}
         />
       </div>
+
+      {uncoded ? (
+        <Card className="rounded-xl border shadow-none">
+          <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4">
+            <span className="ta-caption-1">
+              {uncoded} customer{uncoded === 1 ? " has" : "s have"} no code yet.
+            </span>
+            <Button size="sm" variant="outline" onClick={() => void assignCodes()}>
+              Assign codes
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {due.length ? (
         <Card className="border-warning/40 bg-warning/5 rounded-xl shadow-none">
@@ -143,8 +183,8 @@ export default function CrmPage() {
           <CardHeader className="pb-2">
             <CardTitle className="ta-headline-2">Pipeline</CardTitle>
             <p className="ta-caption-1 text-muted-foreground">
-              Yours to set — nothing moves a prospect on its own. Hottest first
-              inside each column.
+              Yours to set: nothing moves a prospect on its own. Won moves on
+              to onboarding; production needs its checklist.
             </p>
           </CardHeader>
           <CardContent>
@@ -158,6 +198,7 @@ export default function CrmPage() {
                 overdueIds={overdueIds}
                 onOpen={(customer) => setOpenId(customer.id)}
                 onMove={(customer, stage) => void move(customer, stage)}
+                onPhase={(customer, to) => void movePhase(customer, to)}
               />
             )}
           </CardContent>
