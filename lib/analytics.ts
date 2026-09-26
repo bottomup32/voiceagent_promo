@@ -1,13 +1,16 @@
 import type {
   CallLog,
   CrmNote,
+  CustomerPhase,
   CustomerStage,
   CustomerStats,
   Engagement,
   Heat,
+  LifecycleEvent,
   TrackEvent,
 } from "./types";
-import { CUSTOMER_STAGES } from "./types";
+import { CUSTOMER_PHASES, CUSTOMER_STAGES } from "./types";
+import { PHASE_LABEL, STAGE_LABEL } from "./lifecycle";
 
 /** A call left in "started" for longer than this is treated as abandoned. */
 export const STALE_CALL_MS = 10 * 60 * 1000;
@@ -420,7 +423,7 @@ export function unreviewedCalls(calls: CallLog[]): CallLog[] {
 
 export type TimelineEntry = {
   at: string;
-  kind: "note" | "view" | "call";
+  kind: "note" | "view" | "call" | "stage" | "phase";
   text: string;
   /** Set on a call entry, so the row can open that call's transcript. */
   callId?: string;
@@ -434,6 +437,7 @@ export function timeline(
   notes: CrmNote[],
   events: TrackEvent[],
   calls: CallLog[],
+  lifecycle: LifecycleEvent[] = [],
 ): TimelineEntry[] {
   const entries: TimelineEntry[] = [];
 
@@ -456,6 +460,14 @@ export function timeline(
         ? `Your test call · ${length} · ${turns} turns`
         : `Called · ${length} · ${turns} turns`,
     });
+  }
+
+  for (const move of lifecycle) {
+    const text =
+      move.kind === "phase"
+        ? `Moved to ${PHASE_LABEL[move.to as CustomerPhase] ?? move.to}`
+        : `Stage: ${STAGE_LABEL[move.from as CustomerStage] ?? move.from} → ${STAGE_LABEL[move.to as CustomerStage] ?? move.to}`;
+    entries.push({ at: move.at, kind: move.kind, text: move.reason ? `${text} · ${move.reason}` : text });
   }
 
   return entries.sort((a, b) => b.at.localeCompare(a.at));
@@ -482,6 +494,7 @@ export function activityFeed(
     notes: (CrmNote & { customerId: string })[];
     events: TrackEvent[];
     calls: CallLog[];
+    lifecycle?: (LifecycleEvent & { customerId: string })[];
   },
   limit = 40,
 ): FeedEntry[] {
@@ -505,6 +518,12 @@ export function activityFeed(
     list.push(call);
     callsFor.set(call.customerId, list);
   }
+  const lifecycleFor = new Map<string, LifecycleEvent[]>();
+  for (const move of input.lifecycle ?? []) {
+    const list = lifecycleFor.get(move.customerId) ?? [];
+    list.push(move);
+    lifecycleFor.set(move.customerId, list);
+  }
 
   const entries: FeedEntry[] = [];
   for (const [customerId, customerName] of nameFor) {
@@ -512,6 +531,7 @@ export function activityFeed(
       notesFor.get(customerId) ?? [],
       eventsFor.get(customerId) ?? [],
       callsFor.get(customerId) ?? [],
+      lifecycleFor.get(customerId) ?? [],
     )) {
       entries.push({ ...entry, customerId, customerName });
     }
@@ -528,6 +548,17 @@ export function stageCounts<T extends { stage?: CustomerStage }>(
     CUSTOMER_STAGES.map((stage) => [stage, 0]),
   ) as Record<CustomerStage, number>;
   for (const customer of customers) counts[customer.stage ?? "new"] += 1;
+  return counts;
+}
+
+/** How many customers sit in each phase, for the board's phase columns. */
+export function phaseCounts<T extends { phase?: CustomerPhase }>(
+  customers: T[],
+): Record<CustomerPhase, number> {
+  const counts = Object.fromEntries(
+    CUSTOMER_PHASES.map((phase) => [phase, 0]),
+  ) as Record<CustomerPhase, number>;
+  for (const customer of customers) counts[customer.phase ?? "demo"] += 1;
   return counts;
 }
 

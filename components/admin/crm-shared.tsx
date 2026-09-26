@@ -1,14 +1,8 @@
-import { CalendarClock, Eye, NotebookPen, PhoneCall } from "lucide-react";
-import type { CustomerStage, Heat } from "@/lib/types";
+import { ArrowRightLeft, CalendarClock, Eye, Flag, NotebookPen, PhoneCall } from "lucide-react";
+import type { CustomerPhase, CustomerStage, Heat } from "@/lib/types";
 import type { STATUS_STYLES } from "@/components/admin/shared";
 
-export const STAGE_LABEL: Record<CustomerStage, string> = {
-  new: "New",
-  contacted: "Contacted",
-  interested: "Interested",
-  won: "Won",
-  lost: "Lost",
-};
+export { PHASE_LABEL, STAGE_LABEL } from "@/lib/lifecycle";
 
 export const STAGE_KIND: Record<CustomerStage, keyof typeof STATUS_STYLES> = {
   new: "neutral",
@@ -16,6 +10,13 @@ export const STAGE_KIND: Record<CustomerStage, keyof typeof STATUS_STYLES> = {
   interested: "caution",
   won: "positive",
   lost: "negative",
+};
+
+export const PHASE_KIND: Record<CustomerPhase, keyof typeof STATUS_STYLES> = {
+  demo: "neutral",
+  onboarding: "caution",
+  production: "positive",
+  churned: "negative",
 };
 
 export const HEAT_KIND: Record<Heat, keyof typeof STATUS_STYLES> = {
@@ -29,6 +30,8 @@ export const ENTRY_ICON = {
   note: NotebookPen,
   view: Eye,
   call: PhoneCall,
+  stage: ArrowRightLeft,
+  phase: Flag,
 } as const;
 
 export const FOLLOW_UP_ICON = CalendarClock;

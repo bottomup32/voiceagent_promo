@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityFeed, stageCounts } from "../lib/analytics";
+import { activityFeed, phaseCounts, stageCounts, timeline } from "../lib/analytics";
 import type { CallLog, CrmNote, TrackEvent } from "../lib/types";
 
 const customers = [
@@ -99,6 +99,41 @@ describe("stageCounts", () => {
     expect(stageCounts([{}, { stage: "contacted" as const }])).toMatchObject({
       new: 1,
       contacted: 1,
+    });
+  });
+});
+
+describe("phase and stage moves", () => {
+  const moves = [
+    { id: "1", at: "2026-09-02T00:00:00.000Z", kind: "phase" as const, from: "demo", to: "onboarding", actor: "operator" as const, reason: "signed" },
+    { id: "2", at: "2026-09-01T00:00:00.000Z", kind: "stage" as const, from: "interested", to: "won", actor: "operator" as const },
+  ];
+
+  it("shows up in one prospect's timeline, in words", () => {
+    const entries = timeline([], [], [], moves);
+    expect(entries.map((entry) => [entry.kind, entry.text])).toEqual([
+      ["phase", "Moved to Onboarding · signed"],
+      ["stage", "Stage: Interested → Won"],
+    ]);
+  });
+
+  it("shows up in the feed under whose it is", () => {
+    const feed = activityFeed({
+      customers: [{ id: "c1", name: "Joe's Pizza" }],
+      notes: [],
+      events: [],
+      calls: [],
+      lifecycle: moves.map((move) => ({ ...move, customerId: "c1" })),
+    });
+    expect(feed[0]).toEqual(expect.objectContaining({ kind: "phase", customerName: "Joe's Pizza" }));
+  });
+
+  it("counts prospects per phase, a missing phase as demo", () => {
+    expect(phaseCounts([{ phase: "onboarding" }, {}, { phase: "churned" }])).toEqual({
+      demo: 1,
+      onboarding: 1,
+      production: 0,
+      churned: 1,
     });
   });
 });
