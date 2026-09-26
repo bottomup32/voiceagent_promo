@@ -1,6 +1,8 @@
-import { getStore } from "./kv";
+import { getStore, type Store } from "./kv";
 import { dropEvents } from "./calls";
 import { dropNotes } from "./crm";
+import { dropLifecycle } from "./lifecycle-store";
+import { baseSlug, isCodeShape, makeCode } from "./customer-code";
 import { fallbackName, parseMapsUrl } from "./maps";
 import { PROMPT_VERSION, buildPrompts } from "./prompt";
 import type { Customer } from "./types";
@@ -87,6 +89,43 @@ export async function saveCustomer(customer: Customer): Promise<Customer> {
   return customer;
 }
 
+const codeKey = (code: string) => `code:${code}`;
+
+/**
+ * Claim a code for a customer who has none; return the one they have
+ * otherwise. Called by the create route and the backfill only — never from
+ * `saveCustomer`, so an ordinary save stays an ordinary save.
+ *
+ * The index write is the claim: of two customers reaching for the same code,
+ * `setIfAbsent` lets one through and the other rolls again. Five short tries,
+ * then a longer suffix.
+ */
+export async function assignCode(
+  customer: Customer,
+  store: Store = getStore(),
+  rand: () => number = Math.random,
+): Promise<string> {
+  if (customer.code) return customer.code;
+  const base = baseSlug({
+    businessName: customer.businessName,
+    websiteUrl: customer.websiteUrl,
+    category: customer.profile?.category,
+  });
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const code = makeCode(base, rand, attempt < 5 ? 3 : 4);
+    if (await store.setIfAbsent(codeKey(code), customer.id)) return code;
+  }
+  throw new Error("Could not find a free customer code. Try again.");
+}
+
+/** A customer by code, however it was typed. */
+export async function findByCode(input: string): Promise<Customer | null> {
+  const code = input.trim().toLowerCase();
+  if (!isCodeShape(code)) return null;
+  const id = await getStore().getJson<string>(codeKey(code));
+  return id ? getCustomer(id) : null;
+}
+
 export async function deleteCustomer(id: string): Promise<boolean> {
   const store = getStore();
   const customer = await getCustomer(id);
@@ -98,6 +137,8 @@ export async function deleteCustomer(id: string): Promise<boolean> {
   }
   await dropEvents(id);
   await dropNotes(id);
+  if (customer.code) await store.del(codeKey(customer.code));
+  await dropLifecycle(id);
   await store.del(key(id));
   await store.removeMember(INDEX, id);
   return true;
