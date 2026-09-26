@@ -352,6 +352,20 @@ network answers. Notes live in their own `notes:{customerId}` list
 customer and the history is kept; `listAllNotes()` fans out one read per
 customer, which is what the per-customer partitioning costs on this screen.
 
+Above the stage sits `Customer.phase` — `demo`, `onboarding`, `production`,
+`churned` — and phase is the source of truth: the stage is the sales detail
+inside the demo, stays Won from onboarding on, and `lost` means only "left
+during the demo". Both move only through `lib/lifecycle.ts`, which decides and
+returns the `LifecycleEvent`s to record in `lifecycle:{customerId}`; the PATCH
+route refuses a stage change the machine refuses, and phases change only at
+`POST /api/admin/customers/[id]/phase`. Production is unreachable until the
+preflight (M5) exists.
+
+Every customer also has a readable code (`joes-pizza-k7q`, `lib/customer-code.ts`)
+indexed at `code:{code}`. It is assigned at create and by
+`POST /api/admin/maintenance/codes`, never by `saveCustomer`, and never
+changes. It is a label, not a credential: the demo link stays the nanoid.
+
 Page views live in `events:{customerId}` lists, not one global log, so a busy
 prospect cannot slow the dashboard down and `deleteCustomer` can take their
 views with them. The old global `events` list is still read and merged.
