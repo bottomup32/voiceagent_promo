@@ -80,6 +80,36 @@ export const CUSTOMER_STAGES = [
 
 export type CustomerStage = (typeof CUSTOMER_STAGES)[number];
 
+/**
+ * Where the customer is in the product, as opposed to where the deal stands.
+ * A demo is the pitch; onboarding is the business correcting its own copy;
+ * production is the agent answering their line. Churned is out, from any of
+ * them.
+ *
+ * Phase is the source of truth and `stage` is the sales detail inside the
+ * demo: once a customer is onboarding their stage is Won and stays Won, and
+ * `lost` means only "left during the demo".
+ */
+export const CUSTOMER_PHASES = ["demo", "onboarding", "production", "churned"] as const;
+
+export type CustomerPhase = (typeof CUSTOMER_PHASES)[number];
+
+export type LifecycleActor = "operator" | "customer" | "system";
+
+/** One move of phase or stage. Append-only, kept in `lifecycle:{customerId}`. */
+export type LifecycleEvent = {
+  id: string;
+  at: string;
+  kind: "stage" | "phase";
+  from: string;
+  to: string;
+  actor: LifecycleActor;
+  reason?: string;
+};
+
+/** Onboarding settings the customer will manage; empty until those screens exist. */
+export type CustomerSettings = Record<string, never>;
+
 /** One line the operator wrote about a prospect. Append-only. */
 export type CrmNote = {
   id: string;
@@ -117,6 +147,17 @@ export type Customer = {
   /** Demo minutes for this prospect; absent means DEFAULT_DEMO_MINUTES. */
   demoMinutes?: number;
   stage?: CustomerStage;
+  /** Readable, immutable, e.g. "joes-pizza-k7q". Assigned at create or by the backfill. */
+  code?: string;
+  phase?: CustomerPhase;
+  phaseChangedAt?: string;
+  /** Test-call minutes while onboarding; absent means the deployment default (M3). */
+  onboardingMinutes?: number;
+  /** Manual items on the road to production. */
+  checklist?: { phoneConnected?: boolean };
+  /** Bumped to sign the customer out everywhere (M2). */
+  portalEpoch?: number;
+  settings?: CustomerSettings;
   lastContactedAt?: string;
   followUpAt?: string;
   status: CustomerStatus;

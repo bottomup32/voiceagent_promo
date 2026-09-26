@@ -20,6 +20,13 @@ export function normalize(customer: Customer): Customer {
     customer = { ...customer, stage: "new" };
   }
 
+  // Records from before the funnel: a deal lost in the demo is churned, and
+  // everyone else is still in the demo. Won is not promoted here — starting
+  // onboarding is the operator's call.
+  if (!customer.phase) {
+    customer = { ...customer, phase: customer.stage === "lost" ? "churned" : "demo" };
+  }
+
   // Prompts nobody has touched follow the current wording, so a record saved
   // before the receptionist learned to open the call, or to answer in the
   // caller's language, picks both up without anyone reopening it. A prompt

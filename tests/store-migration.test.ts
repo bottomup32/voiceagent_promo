@@ -72,3 +72,18 @@ describe("prompts saved before the current wording", () => {
     expect(normalize(record({ voice: "quartz" })).voice).toBe(DEFAULT_VOICE);
   });
 });
+
+describe("records written before the funnel had phases", () => {
+  it("reads a lost deal as churned", () => {
+    expect(normalize(record({ stage: "lost" })).phase).toBe("churned");
+  });
+
+  it("keeps everyone else in the demo, a won deal included", () => {
+    expect(normalize(record({ stage: "won" })).phase).toBe("demo");
+    expect(normalize(record({ stage: undefined })).phase).toBe("demo");
+  });
+
+  it("leaves a phase that was set alone", () => {
+    expect(normalize(record({ stage: "won", phase: "onboarding" })).phase).toBe("onboarding");
+  });
+});
