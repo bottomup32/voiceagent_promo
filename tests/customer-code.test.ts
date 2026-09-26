@@ -13,7 +13,7 @@ describe("slugify", () => {
     expect(slugify("Kim & Lee LLP")).toBe("kim-lee");
     expect(slugify("The Bright Smile Dental Co.")).toBe("bright-smile-dental");
     expect(slugify("Café Olé")).toBe("cafe-ole");
-    expect(slugify("O'Brien Plumbing")).toBe("obrien-plumbing");
+    expect(slugify("O\u2019Brien Plumbing")).toBe("obrien-plumbing");
   });
 
   it("cuts at a word boundary under 24 characters", () => {

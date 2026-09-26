@@ -20,9 +20,9 @@ const STOPWORDS = new Set(["llc", "inc", "the", "co", "ltd", "corp", "company", 
 export function slugify(name: string): string {
   const words = name
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/['’]/g, "")
+    .replace(/[\u0027\u2019]/g, "")
     .split(/[^a-z0-9]+/)
     .filter((word) => word && !STOPWORDS.has(word));
 
