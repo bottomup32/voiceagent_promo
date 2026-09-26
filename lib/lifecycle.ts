@@ -176,7 +176,15 @@ export function applyStage(
   if (stage === current) return { ok: true, customer, events: [] };
 
   if (phase === "churned") {
-    if (stage === "lost") return { ok: true, customer, events: [] };
+    if (stage === "lost") {
+      // Already handled above when the stage is already Lost; reaching here
+      // means the customer churned after onboarding, where the stage stays
+      // Won on purpose. Lost means "left during the demo".
+      return {
+        ok: false,
+        reasons: ["Left after onboarding, so the stage stays Won. It was not lost."],
+      };
+    }
     const reopened = applyTransition(customer, "demo", ctx, actor);
     if (!reopened.ok) return reopened;
     return stage === reopened.customer.stage

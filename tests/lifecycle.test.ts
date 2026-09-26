@@ -187,4 +187,12 @@ describe("moving the stage", () => {
     expect(result.customer.phase).toBe("demo");
     expect(result.customer.stage).toBe("interested");
   });
+
+  it("refuses Lost for a customer who churned after onboarding, since the stage stays Won", () => {
+    const result = applyStage(customer({ phase: "churned", stage: "won" }), "lost", ctx, "operator");
+    expect(result).toEqual({
+      ok: false,
+      reasons: ["Left after onboarding, so the stage stays Won. It was not lost."],
+    });
+  });
 });
