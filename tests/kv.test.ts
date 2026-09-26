@@ -22,12 +22,22 @@ function startFakeRedis(token: string): Promise<{ server: Server; url: string }>
       const [command, ...args] = JSON.parse(body) as string[];
       let result: unknown = null;
       switch (command) {
-        case "SET":
+        case "SET": {
+          const nx = args.includes("NX");
+          if (nx && kv.has(args[0])) {
+            result = null;
+            break;
+          }
           kv.set(args[0], args[1]);
           result = "OK";
           break;
+        }
         case "GET":
           result = kv.get(args[0]) ?? null;
+          break;
+        case "GETDEL":
+          result = kv.get(args[0]) ?? null;
+          kv.delete(args[0]);
           break;
         case "DEL":
           kv.delete(args[0]);
@@ -121,6 +131,21 @@ function behavesLikeAStore(name: string, make: () => Promise<Store>) {
 
       await store.dropList("events");
       expect(await store.range("events")).toEqual([]);
+    });
+
+    it("claims a key only once", async () => {
+      const store = await make();
+      expect(await store.setIfAbsent("code:joes-pizza-k7q", "abc", 60)).toBe(true);
+      expect(await store.setIfAbsent("code:joes-pizza-k7q", "xyz", 60)).toBe(false);
+      expect(await store.getJson("code:joes-pizza-k7q")).toBe("abc");
+    });
+
+    it("hands a value out once and then forgets it", async () => {
+      const store = await make();
+      await store.setIfAbsent("magic:t1", { customerId: "abc" });
+      expect(await store.take("magic:t1")).toEqual({ customerId: "abc" });
+      expect(await store.take("magic:t1")).toBeNull();
+      expect(await store.take("magic:never")).toBeNull();
     });
   });
 }

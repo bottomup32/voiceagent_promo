@@ -17,6 +17,17 @@ export type Store = {
   getJson<T>(key: string): Promise<T | null>;
   setJson(key: string, value: unknown): Promise<void>;
   del(key: string): Promise<void>;
+  /**
+   * Write only if nothing is there yet; true when this call wrote it. The one
+   * atomic step the store offers, used where two requests must not both win:
+   * a customer code, a single-use sign-in token.
+   *
+   * The file driver has no expiry, so callers that need one also store an
+   * `expiresAt` and check it.
+   */
+  setIfAbsent(key: string, value: unknown, ttlSec?: number): Promise<boolean>;
+  /** Read and delete in one step, so a value can be used exactly once. */
+  take<T>(key: string): Promise<T | null>;
   /** Members of a set, used as the index of customers and of a customer's calls. */
   members(setKey: string): Promise<string[]>;
   addMember(setKey: string, member: string): Promise<void>;
@@ -62,6 +73,37 @@ export function fsStore(root: string = DATA_DIR): Store {
 
     async del(key) {
       await fs.rm(filePath(key), { force: true });
+    },
+
+    async setIfAbsent(key, value) {
+      const target = filePath(key);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      try {
+        await fs.writeFile(target, JSON.stringify(value, null, 2), { encoding: "utf8", flag: "wx" });
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+        throw error;
+      }
+    },
+
+    // Renaming is atomic on one filesystem, so of two callers only one gets
+    // the file; the other finds it gone.
+    async take<T>(key: string): Promise<T | null> {
+      const target = filePath(key);
+      const claimed = `${target}.taken-${process.pid}-${Math.random().toString(36).slice(2)}`;
+      try {
+        await fs.rename(target, claimed);
+      } catch {
+        return null;
+      }
+      try {
+        return JSON.parse(await fs.readFile(claimed, "utf8")) as T;
+      } catch {
+        return null;
+      } finally {
+        await fs.rm(claimed, { force: true });
+      }
     },
 
     // On disk the index is the directory listing, so nothing has to be kept in
@@ -179,6 +221,22 @@ export function redisStore(config: RedisConfig): Store {
 
     async del(key) {
       await command(config, ["DEL", key]);
+    },
+
+    async setIfAbsent(key, value, ttlSec) {
+      const args: (string | number)[] = ["SET", key, JSON.stringify(value), "NX"];
+      if (ttlSec) args.push("EX", ttlSec);
+      return (await command<string | null>(config, args)) === "OK";
+    },
+
+    async take<T>(key: string): Promise<T | null> {
+      const raw = await command<string | null>(config, ["GETDEL", key]);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        return null;
+      }
     },
 
     async members(setKey) {
