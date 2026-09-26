@@ -82,8 +82,19 @@ export default function CrmPage() {
   async function assignCodes() {
     try {
       const response = await fetch("/api/admin/maintenance/codes", { method: "POST" });
-      const result = await readJson<{ assigned: number; repaired: number }>(response);
-      toast.success(`Gave ${result.assigned} customer${result.assigned === 1 ? "" : "s"} a code.`);
+      const result = await readJson<{ assigned: number; repaired: number; mismatched: number }>(
+        response,
+      );
+      let message = `Gave ${result.assigned} customer${result.assigned === 1 ? "" : "s"} a code.`;
+      if (result.repaired) {
+        message += ` Repaired ${result.repaired} index entr${result.repaired === 1 ? "y" : "ies"}.`;
+      }
+      toast.success(message);
+      if (result.mismatched) {
+        toast.warning(
+          `${result.mismatched} customer${result.mismatched === 1 ? " has" : "s have"} a code that points at someone else. Fix by hand.`,
+        );
+      }
       void load();
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "Could not assign codes.");

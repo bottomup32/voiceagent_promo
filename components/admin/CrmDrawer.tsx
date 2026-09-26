@@ -91,6 +91,9 @@ export function CrmDrawer({
         current ? { ...current, customer: payload.customer! } : current,
       );
       onSaved();
+      // A stage move writes a lifecycle event; reload so it shows up in the
+      // timeline right away rather than waiting for the next open.
+      if (partial.stage !== undefined) void load();
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "Could not save.");
       void load();
