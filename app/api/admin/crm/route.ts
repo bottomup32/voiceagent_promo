@@ -3,6 +3,7 @@ import { jsonError } from "@/lib/api";
 import { listCustomers } from "@/lib/store";
 import { listAllCalls, readEvents } from "@/lib/calls";
 import { listAllNotes } from "@/lib/crm";
+import { listAllLifecycle } from "@/lib/lifecycle-store";
 import {
   activityFeed,
   emptyStats,
@@ -29,7 +30,8 @@ export async function GET() {
       listAllCalls(),
       readEvents(),
     ]);
-    const notes = await listAllNotes(customers.map((customer) => customer.id));
+    const ids = customers.map((customer) => customer.id);
+    const [notes, lifecycle] = await Promise.all([listAllNotes(ids), listAllLifecycle(ids)]);
 
     const stats = statsByCustomer(calls, events);
     const heat = heatByCustomer(calls, stats);
@@ -51,6 +53,7 @@ export async function GET() {
           notes,
           events,
           calls,
+          lifecycle,
         },
         40,
       ),

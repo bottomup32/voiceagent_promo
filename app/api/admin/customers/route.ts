@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { nanoid } from "nanoid";
-import { getCustomer, listCustomers, saveCustomer } from "@/lib/store";
+import { assignCode, getCustomer, listCustomers, saveCustomer } from "@/lib/store";
 import { listAllCalls, readEvents } from "@/lib/calls";
 import {
   emptyStats,
@@ -116,11 +116,13 @@ export async function POST(request: Request) {
     agentName,
     language,
     status: "researching",
+    phase: "demo",
     createdAt: now,
     updatedAt: now,
   };
 
   try {
+    customer.code = await assignCode(customer);
     await saveCustomer(customer);
   } catch (error) {
     return jsonError(error);

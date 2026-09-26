@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { nanoid } from "nanoid";
 import { jsonError } from "@/lib/api";
 import { assertWritableStore } from "@/lib/kv";
+import { applyStage } from "@/lib/lifecycle";
+import { listLifecycle, recordLifecycle } from "@/lib/lifecycle-store";
 import { deleteCustomer, getCustomer, saveCustomer } from "@/lib/store";
 import { listCalls, readEvents } from "@/lib/calls";
 import { computeStats, extendDemoMinutes } from "@/lib/analytics";
@@ -13,6 +16,7 @@ import type {
   Customer,
   CustomerPrompts,
   CustomerStage,
+  LifecycleEvent,
 } from "@/lib/types";
 import { CUSTOMER_STAGES, DEFAULT_DEMO_MINUTES, LIVE_VOICES } from "@/lib/types";
 
@@ -22,17 +26,18 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
-  let customer, calls, events, notes;
+  let customer, calls, events, notes, lifecycle;
   try {
     customer = await getCustomer(id);
     if (!customer) {
       return NextResponse.json({ error: "Customer not found." }, { status: 404 });
     }
     // Only this customer's views; no need to read every other one's.
-    [calls, events, notes] = await Promise.all([
+    [calls, events, notes, lifecycle] = await Promise.all([
       listCalls(id),
       readEvents(id),
       listNotes(id),
+      listLifecycle(id),
     ]);
   } catch (error) {
     return jsonError(error);
@@ -41,7 +46,7 @@ export async function GET(_request: Request, { params }: Params) {
     calls,
     events.filter((event) => event.customerId === id),
   );
-  return NextResponse.json({ customer, stats, calls, events, notes });
+  return NextResponse.json({ customer, stats, calls, events, notes, lifecycle });
 }
 
 export async function PATCH(request: Request, { params }: Params) {
@@ -99,7 +104,7 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ error: "Minutes to add must be positive." }, { status: 400 });
   }
 
-  const next: Customer = {
+  let next: Customer = {
     ...customer,
     businessName: body.businessName?.trim() || customer.businessName,
     websiteUrl:
@@ -137,7 +142,7 @@ export async function PATCH(request: Request, { params }: Params) {
     // opening in a language nothing here knows how to greet in.
     language:
       body.language !== undefined ? languageOf(body.language).code : customer.language,
-    stage: body.stage ?? customer.stage,
+    stage: customer.stage,
     // null clears a date the operator set by mistake; undefined leaves it.
     lastContactedAt:
       body.lastContactedAt !== undefined
@@ -161,9 +166,31 @@ export async function PATCH(request: Request, { params }: Params) {
     regenerate: body.regeneratePrompts,
   });
 
+  // A stage is never written straight onto the record: Lost is leaving the
+  // demo, and nothing but Won makes sense once onboarding has started. The
+  // machine decides and says why when it will not.
+  let moves: LifecycleEvent[] = [];
+  if (body.stage && body.stage !== customer.stage) {
+    const moved = applyStage(
+      next,
+      body.stage,
+      { now: next.updatedAt, newId: () => nanoid(10) },
+      "operator",
+    );
+    if (!moved.ok) {
+      return NextResponse.json(
+        { error: moved.reasons.join(" "), reasons: moved.reasons },
+        { status: 409 },
+      );
+    }
+    next = moved.customer;
+    moves = moved.events;
+  }
+
   try {
     assertWritableStore();
     await saveCustomer(next);
+    await recordLifecycle(id, moves);
   } catch (error) {
     return jsonError(error);
   }
