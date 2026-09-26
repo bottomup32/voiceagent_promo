@@ -70,9 +70,16 @@ export async function POST(request: Request, { params }: Params) {
       mapsUrl,
       notes: researchNotes,
     });
-    const keepPrompts = customer.prompts.edited && !regeneratePrompts;
+    // Research takes a minute or two; re-read rather than build off the record
+    // from the top of the request, so a phase/stage/code change made while it
+    // ran is not clobbered by writing back a stale copy.
+    const current = await getCustomer(id);
+    if (!current) {
+      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+    }
+    const keepPrompts = current.prompts.edited && !regeneratePrompts;
     const next = {
-      ...customer,
+      ...current,
       businessName: result.businessName || businessName,
       websiteUrl,
       mapsUrl,
@@ -82,8 +89,8 @@ export async function POST(request: Request, { params }: Params) {
       dossier: result.dossier,
       sources: result.sources,
       prompts: keepPrompts
-        ? customer.prompts
-        : buildPrompts(result.profile, customer.agentName, customer.language),
+        ? current.prompts
+        : buildPrompts(result.profile, current.agentName, current.language),
       status: "ready" as const,
       error: undefined,
       researchedAt: new Date().toISOString(),
@@ -93,8 +100,12 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ customer: next });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const current = await getCustomer(id);
+    if (!current) {
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
     await saveCustomer({
-      ...customer,
+      ...current,
       businessName,
       websiteUrl,
       mapsUrl,

@@ -96,7 +96,6 @@ export default function CustomerDetailPage({
         active: partial?.active ?? draft.active,
         agentName: partial?.agentName ?? draft.agentName,
         demoMinutes: partial?.demoMinutes ?? draft.demoMinutes,
-        stage: partial?.stage ?? draft.stage,
         lastContactedAt: partial?.lastContactedAt ?? draft.lastContactedAt ?? "",
         followUpAt: partial?.followUpAt ?? draft.followUpAt ?? "",
         voice: partial?.voice ?? draft.voice,
